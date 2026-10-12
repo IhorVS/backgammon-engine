@@ -4,10 +4,12 @@ import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
 import lombok.Value;
 
 /**
- * Moves the active side's top checker from a playing cell to its borne-off cell.
+ * Bears off the active side's top checker from a side-relative route point using the specified die value.
  *
- * <p>The engine determines the consumed die value and validates bearing off according to game rules.
- * This action is accepted only while awaiting a movement.
+ * <p>The engine converts the source route point to a physical board index using the active color
+ * and validates bearing off with the selected die value according to game rules.
+ *
+ * <p>This action is accepted only while awaiting a movement.
  */
 @SuppressWarnings("ClassCanBeRecord")
 @Value
@@ -19,7 +21,12 @@ public class BearOff implements GameAction {
     StandardCheckerColor activeColor;
 
     /**
-     * The source playing cell index, from 0 to 23.
+     * The source route point for the active side, from 1 to 24.
      */
     int from;
+
+    /**
+     * The selected die value to consume, from 1 to 6.
+     */
+    int diceValue;
 }

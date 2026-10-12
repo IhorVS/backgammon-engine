@@ -1,8 +1,6 @@
 package ivs.games.engine.backgammon;
 
-import ivs.games.accessories.backgammonboard.standard.StandardBoard;
 import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
-import ivs.games.engine.CommandResult;
 import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Enter;
@@ -13,7 +11,6 @@ import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.backgammon.state.GameState;
 import ivs.games.engine.exception.EngineCommandException;
 import ivs.games.engine.exception.EngineException;
-import lombok.Value;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -56,9 +53,9 @@ class AbstractBackgammonEngineTest {
         GameState expected = state(color, AWAITING_DICE);
         engine.nextState = expected;
 
-        CommandResult<GameState> result = engine.startGame(setup);
+        GameState actual = engine.startGame(setup);
 
-        assertSame(expected, result.getState());
+        assertSame(expected, actual);
         assertSame(setup, engine.receivedSetup);
     }
 
@@ -83,23 +80,23 @@ class AbstractBackgammonEngineTest {
     }
 
     /**
-     * Checks that a valid movement action reaches its handler while awaiting a movement.
+     * Checks that a movement with valid route points reaches its handler while awaiting a movement.
      */
     @Test
     void moveIsDispatchedToItsHandler() {
-        assertDispatch(new Move(WHITE, 0, 5), AWAITING_MOVE);
+        assertDispatch(new Move(WHITE, 1, 6), AWAITING_MOVE);
     }
 
     /**
-     * Checks that a valid bearing-off action reaches its handler while awaiting a movement.
+     * Checks that a bearing-off action with a valid route point and selected die value reaches its handler.
      */
     @Test
     void bearOffIsDispatchedToItsHandler() {
-        assertDispatch(new BearOff(WHITE, 23), AWAITING_MOVE);
+        assertDispatch(new BearOff(WHITE, 24, 1), AWAITING_MOVE);
     }
 
     /**
-     * Checks that a valid entry action reaches the overridden entry handler.
+     * Checks that an entry action with a valid route point reaches the overridden entry handler.
      */
     @Test
     void enterIsDispatchedToItsHandler() {
@@ -151,8 +148,8 @@ class AbstractBackgammonEngineTest {
     void rejectsAllMovementsInWrongPhase(GamePhase phase) {
         GameState state = state(WHITE, phase);
 
-        assertRejected(state, new Move(WHITE, 0, 5));
-        assertRejected(state, new BearOff(WHITE, 23));
+        assertRejected(state, new Move(WHITE, 1, 6));
+        assertRejected(state, new BearOff(WHITE, 24, 1));
         assertRejected(state, new Enter(WHITE, 5));
     }
 
@@ -199,109 +196,76 @@ class AbstractBackgammonEngineTest {
         engine.nextState = state;
         DiceRolled action = new DiceRolled(WHITE, first, second);
 
-        assertSame(state, engine.processCommand(state, action).getState());
+        assertSame(state, engine.processCommand(state, action));
         assertSame(action, engine.receivedAction);
     }
 
     /**
-     * Checks that negative and extreme source indices are rejected for a movement.
+     * Checks that movement source points outside the inclusive range from one to twenty-four are rejected.
      *
-     * @param index the invalid source index
+     * @param point the invalid source route point
      */
     @ParameterizedTest
-    @ValueSource(ints = {-1, Integer.MIN_VALUE, Integer.MAX_VALUE})
-    void rejectsInvalidMoveSource(int index) {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, index, 5));
+    @ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 25, Integer.MAX_VALUE})
+    void rejectsInvalidMoveSource(int point) {
+        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, point, 5));
     }
 
     /**
-     * Checks that the cell count itself is rejected as a source index.
-     */
-    @Test
-    void rejectsMoveSourceAtCellCount() {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, StandardBoard.PLAYING_CELL_COUNT, 5));
-    }
-
-    /**
-     * Checks that negative and extreme destination indices are rejected for a movement.
+     * Checks that movement destination points outside the inclusive range from one to twenty-four are rejected.
      *
-     * @param index the invalid destination index
+     * @param point the invalid destination route point
      */
     @ParameterizedTest
-    @ValueSource(ints = {-1, Integer.MIN_VALUE, Integer.MAX_VALUE})
-    void rejectsInvalidMoveDestination(int index) {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, 5, index));
+    @ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 25, Integer.MAX_VALUE})
+    void rejectsInvalidMoveDestination(int point) {
+        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, 5, point));
     }
 
     /**
-     * Checks that the cell count itself is rejected as a destination index.
+     * Checks that a movement cannot have the same source and destination route point.
      */
     @Test
-    void rejectsMoveDestinationAtCellCount() {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, 5, StandardBoard.PLAYING_CELL_COUNT));
-    }
-
-    /**
-     * Checks that a movement cannot have the same source and destination cell.
-     */
-    @Test
-    void rejectsMoveWithEqualIndices() {
+    void rejectsMoveWithEqualPoints() {
         assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, 5, 5));
     }
 
     /**
-     * Checks that negative and extreme source indices are rejected for bearing off.
+     * Checks that bearing-off source points outside the inclusive range from one to twenty-four are rejected.
      *
-     * @param index the invalid source index
+     * @param point the invalid source route point
      */
     @ParameterizedTest
-    @ValueSource(ints = {-1, Integer.MIN_VALUE, Integer.MAX_VALUE})
-    void rejectsInvalidBearOffSource(int index) {
-        assertRejected(state(WHITE, AWAITING_MOVE), new BearOff(WHITE, index));
+    @ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 25, Integer.MAX_VALUE})
+    void rejectsInvalidBearOffSource(int point) {
+        assertRejected(state(WHITE, AWAITING_MOVE), new BearOff(WHITE, point, 1));
     }
 
     /**
-     * Checks that bearing off rejects a source index equal to the cell count.
-     */
-    @Test
-    void rejectsBearOffSourceAtCellCount() {
-        assertRejected(state(WHITE, AWAITING_MOVE), new BearOff(WHITE, StandardBoard.PLAYING_CELL_COUNT));
-    }
-
-    /**
-     * Checks that negative and extreme destination indices are rejected for bar entry.
+     * Checks that entry destination points outside the inclusive range from one to twenty-four are rejected.
      *
-     * @param index the invalid destination index
+     * @param point the invalid destination route point
      */
     @ParameterizedTest
-    @ValueSource(ints = {-1, Integer.MIN_VALUE, Integer.MAX_VALUE})
-    void rejectsInvalidEnterDestination(int index) {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Enter(WHITE, index));
+    @ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 25, Integer.MAX_VALUE})
+    void rejectsInvalidEnterDestination(int point) {
+        assertRejected(state(WHITE, AWAITING_MOVE), new Enter(WHITE, point));
     }
 
     /**
-     * Checks that bar entry rejects a destination index equal to the cell count.
-     */
-    @Test
-    void rejectsEnterDestinationAtCellCount() {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Enter(WHITE, StandardBoard.PLAYING_CELL_COUNT));
-    }
-
-    /**
-     * Checks that the first and last playing cells pass common movement validation.
+     * Checks both inclusive route boundaries for every movement action type.
      *
-     * <p>These checks concern index bounds only, not game-specific movement legality.
+     * <p>These checks concern route point bounds only, not game-specific movement legality.
+     *
+     * @param point the route point at a supported boundary
      */
-    @Test
-    void acceptsMovementBoundaryIndices() {
-        int last = StandardBoard.PLAYING_CELL_COUNT - 1;
-
-        assertDispatch(new Move(WHITE, 0, last), AWAITING_MOVE);
-        assertDispatch(new Move(WHITE, last, 0), AWAITING_MOVE);
-        assertDispatch(new BearOff(WHITE, 0), AWAITING_MOVE);
-        assertDispatch(new BearOff(WHITE, last), AWAITING_MOVE);
-        assertDispatch(new Enter(WHITE, 0), AWAITING_MOVE);
-        assertDispatch(new Enter(WHITE, last), AWAITING_MOVE);
+    @ParameterizedTest
+    @ValueSource(ints = {1, 24})
+    void acceptsMovementBoundaryPoints(int point) {
+        assertDispatch(new Move(WHITE, point, 5), AWAITING_MOVE);
+        assertDispatch(new Move(WHITE, 5, point), AWAITING_MOVE);
+        assertDispatch(new BearOff(WHITE, point, 1), AWAITING_MOVE);
+        assertDispatch(new Enter(WHITE, point), AWAITING_MOVE);
     }
 
     /**
@@ -387,9 +351,9 @@ class AbstractBackgammonEngineTest {
         GameState expected = state(action.getActiveColor(), FINISHED);
         engine.nextState = expected;
 
-        CommandResult<GameState> result = engine.processCommand(original, action);
+        GameState actual = engine.processCommand(original, action);
 
-        assertSame(expected, result.getState());
+        assertSame(expected, actual);
         assertSame(original, engine.receivedState);
         assertSame(action, engine.receivedAction);
         assertEquals(phase, original.getGamePhase());
@@ -414,7 +378,7 @@ class AbstractBackgammonEngineTest {
     /**
      * Creates a minimal state containing only properties read by common validation.
      *
-     * <p>The board is omitted because index checks use the standard board's cell count.
+     * <p>The board is omitted because route point bounds do not depend on its contents.
      *
      * @param color the active color, possibly null for a rejection test
      * @param phase the phase, possibly null for a rejection test
@@ -427,15 +391,6 @@ class AbstractBackgammonEngineTest {
                 .diceValues(List.of())
                 .remainingDiceValues(List.of())
                 .build();
-    }
-
-    /**
-     * Supplies a predefined state through the common result contract.
-     */
-    @SuppressWarnings("ClassCanBeRecord")
-    @Value
-    private static class TestResult implements CommandResult<GameState> {
-        GameState state;
     }
 
     /**
@@ -455,33 +410,33 @@ class AbstractBackgammonEngineTest {
          * Records the setup and returns the predefined state.
          */
         @Override
-        protected CommandResult<GameState> createInitialState(GameSetup initialSetup) {
+        protected GameState createInitialState(GameSetup initialSetup) {
             receivedSetup = initialSetup;
-            return new TestResult(nextState);
+            return nextState;
         }
 
         /**
          * Records dispatch of a dice-result action.
          */
         @Override
-        protected CommandResult<GameState> processDiceRolled(GameState state, DiceRolled action) {
-            return recordAction(state, action);
+        protected GameState processDiceRolled(GameState gameState, DiceRolled action) {
+            return recordAction(gameState, action);
         }
 
         /**
          * Records dispatch of a movement action.
          */
         @Override
-        protected CommandResult<GameState> processMove(GameState state, Move action) {
-            return recordAction(state, action);
+        protected GameState processMove(GameState gameState, Move action) {
+            return recordAction(gameState, action);
         }
 
         /**
          * Records dispatch of a bearing-off action.
          */
         @Override
-        protected CommandResult<GameState> processBearOff(GameState state, BearOff action) {
-            return recordAction(state, action);
+        protected GameState processBearOff(GameState gameState, BearOff action) {
+            return recordAction(gameState, action);
         }
 
         /**
@@ -489,12 +444,12 @@ class AbstractBackgammonEngineTest {
          *
          * @param state  the state received by the handler
          * @param action the action received by the handler
-         * @return the result containing the predefined state
+         * @return the predefined game state
          */
-        protected CommandResult<GameState> recordAction(GameState state, GameAction action) {
+        protected GameState recordAction(GameState state, GameAction action) {
             receivedState = state;
             receivedAction = action;
-            return new TestResult(nextState);
+            return nextState;
         }
 
         /**
@@ -517,8 +472,8 @@ class AbstractBackgammonEngineTest {
          * Records dispatch of an entry action.
          */
         @Override
-        protected CommandResult<GameState> processEnter(GameState state, Enter action) {
-            return recordAction(state, action);
+        protected GameState processEnter(GameState gameState, Enter action) {
+            return recordAction(gameState, action);
         }
     }
 }

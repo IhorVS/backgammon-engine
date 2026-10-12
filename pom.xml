@@ -30,6 +30,14 @@
     </properties>
 
     <dependencies>
+        <!-- Source: https://mvnrepository.com/artifact/com.google.guava/guava -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>33.7.2-jre</version>
+            <scope>compile</scope>
+        </dependency>
+
         <dependency>
             <groupId>ivs.games.engine</groupId>
             <artifactId>game-engine</artifactId>
