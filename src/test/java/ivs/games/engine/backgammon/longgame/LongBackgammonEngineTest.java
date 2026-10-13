@@ -3,7 +3,6 @@ package ivs.games.engine.backgammon.longgame;
 import ivs.games.accessories.backgammonboard.standard.StandardChecker;
 import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
 import ivs.games.engine.backgammon.command.DiceRolled;
-import ivs.games.engine.backgammon.state.AllowedMove;
 import ivs.games.engine.backgammon.state.GameSetup;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,10 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests engine construction, initial state creation and dice roll processing.
@@ -106,6 +105,7 @@ class LongBackgammonEngineTest {
         assertEquals(List.of(), state.getDiceValues());
         assertEquals(List.of(), state.getRemainingDiceValues());
         assertEquals(Map.of(), state.getAllowedMoves());
+        assertEquals(Map.of(), state.getAllowedBearOffs());
         assertEquals(0, state.getHeadMoves());
         assertEquals(Map.of(WHITE, true, BLACK, true), state.getFirstTurns());
         assertNull(state.getWinner());
@@ -114,8 +114,8 @@ class LongBackgammonEngineTest {
     }
 
     /**
-     * Checks that dice processing supplies an updated movement context to the resolver
-     * and stores the resolved movements using side-relative route points.
+     * Checks that dice processing supplies current data to the resolver
+     * and transfers both calculated option maps to the resulting state.
      *
      * <p>The board and active side remain unchanged, and the original snapshot still awaits dice.
      */
@@ -126,9 +126,15 @@ class LongBackgammonEngineTest {
         LongGameState original = engine.createInitialState(new GameSetup(WHITE));
 
         List<Integer> movementPool = List.of(3, 5);
-        Map<Integer, Set<AllowedMove>> allowedMoves = Map.of(
-                1, Set.of(new AllowedMove(4, 3), new AllowedMove(6, 5)));
-        when(resolver.resolve(any(MoveContext.class))).thenReturn(allowedMoves);
+        Map<Integer, Set<Integer>> allowedMoves = Map.of(1, Set.of(3, 5));
+        Map<Integer, Set<Integer>> allowedBearOffs = Map.of();
+
+        doAnswer(invocation -> {
+            MoveContext context = invocation.getArgument(0);
+            context.setAllowedMoves(allowedMoves)
+                    .setAllowedBearOffs(allowedBearOffs);
+            return null;
+        }).when(resolver).resolve(any(MoveContext.class));
 
         LongGameState actual = engine.processDiceRolled(original, new DiceRolled(WHITE, 3, 5));
 
@@ -136,7 +142,7 @@ class LongBackgammonEngineTest {
         verify(resolver).resolve(captor.capture());
         MoveContext context = captor.getValue();
 
-        assertSame(original.getBoard(), context.getBoard());
+        assertSame(original.getBoard(), context.getBoardState());
         assertSame(WHITE, context.getActiveColor());
         assertEquals(List.of(3, 5), context.getDiceValues());
         assertEquals(movementPool, context.getMovementPool());
@@ -144,6 +150,7 @@ class LongBackgammonEngineTest {
         assertTrue(context.isFirstTurn());
 
         assertSame(allowedMoves, actual.getAllowedMoves());
+        assertSame(allowedBearOffs, actual.getAllowedBearOffs());
         assertSame(AWAITING_MOVE, actual.getGamePhase());
         assertSame(WHITE, actual.getActiveColor());
         assertSame(original.getBoard(), actual.getBoard());
@@ -157,5 +164,6 @@ class LongBackgammonEngineTest {
         assertEquals(List.of(), original.getDiceValues());
         assertEquals(List.of(), original.getRemainingDiceValues());
         assertEquals(Map.of(), original.getAllowedMoves());
+        assertEquals(Map.of(), original.getAllowedBearOffs());
     }
 }

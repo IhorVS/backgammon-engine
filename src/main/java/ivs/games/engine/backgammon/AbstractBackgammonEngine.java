@@ -116,31 +116,31 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     }
 
     /**
-     * Checks the phase, route point bounds and distinctness of the source and destination points.
+     * Checks the phase, source route point, selected die value and calculated destination bounds.
      *
      * <p>Game-specific movement rules are checked during processing.
      *
      * @param gameState the current game state
-     * @param move      the movement action to validate
-     * @throws EngineCommandException if the phase is invalid, a route point is out of range or the points are equal
+     * @param move the movement action to validate
+     * @throws EngineCommandException if the phase, source, die value or calculated destination is invalid
      */
     protected void validateMove(S gameState, Move move) {
         requirePhase(gameState, GamePhase.AWAITING_MOVE);
 
         int moveFrom = move.getFrom();
-        int moveTo = move.getTo();
-
         EngineCommandException.validate(
                 moveFrom >= 1 && moveFrom <= BoardAddressing.PLAYING_CELL_COUNT,
                 WRONG_SOURCE_POINT, BoardAddressing.PLAYING_CELL_COUNT, moveFrom);
 
+        int diceValue = move.getDiceValue();
         EngineCommandException.validate(
-                moveTo >= 1 && moveTo <= BoardAddressing.PLAYING_CELL_COUNT,
-                WRONG_DESTINATION_POINT, BoardAddressing.PLAYING_CELL_COUNT, moveTo);
+                diceValue >= MIN_DICE_VALUE && diceValue <= MAX_DICE_VALUE,
+                "Die value must be between %d and %d: %d", MIN_DICE_VALUE, MAX_DICE_VALUE, diceValue);
 
+        int moveTo = moveFrom + diceValue;
         EngineCommandException.validate(
-                moveFrom != moveTo,
-                "Source and destination route points must differ: %d", moveFrom);
+                moveTo <= BoardAddressing.PLAYING_CELL_COUNT,
+                WRONG_DESTINATION_POINT, BoardAddressing.PLAYING_CELL_COUNT, moveTo);
     }
 
     /**
@@ -203,13 +203,13 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     protected abstract S processDiceRolled(S gameState, DiceRolled action);
 
     /**
-     * Validates and applies a movement specified by side-relative route points.
+     * Validates and applies a movement using a side-relative source point and selected die value.
      *
-     * <p>Consumes one die value and checks for game completion before computing further movements
-     * or switching the active side.
+     * <p>Consumes one die value and recalculates available actions before determining
+     * whether the active side can continue or play passes to the opposite side.
      *
      * @param gameState the state awaiting a movement
-     * @param action    the movement to process
+     * @param action the movement to process
      * @return the non-null resulting game state
      * @throws EngineCommandException if the movement violates game rules
      */

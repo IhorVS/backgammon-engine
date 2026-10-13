@@ -8,7 +8,6 @@ import ivs.games.engine.backgammon.AbstractBackgammonEngine;
 import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Move;
-import ivs.games.engine.backgammon.state.AllowedMove;
 import ivs.games.engine.backgammon.state.GamePhase;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.exception.EngineCommandException;
@@ -28,12 +27,14 @@ import static ivs.games.engine.backgammon.longgame.BoardGeometry.HEAD_POINT;
  * Initializes long backgammon games and processes actions according to their rules.
  *
  * <p>The engine does not retain state belonging to an individual game.
- * Legal movements are determined by a shared move resolver.
+ * Legal movements and bearing-off options are determined by a shared move resolver.
+ * Actions are validated against the options stored in the supplied state.
  *
- * <p>Movement and bearing-off processing are not implemented yet.
+ * <p>Processing creates new game snapshots without modifying the supplied state.
  */
 public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState> {
 
+    /** The rejection message for a die value absent from the remaining movement pool. */
     private static final String MOVEMENT_IS_UNAVAILABLE = "Movement value is unavailable: %d";
 
     /** The number of checkers belonging to each side. */
@@ -92,14 +93,18 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                 .headMoves(0)
                 .firstTurns(firstTurns)
                 .allowedMoves(Map.of())
+                .allowedBearOffs(Map.of())
                 .build();
     }
 
     /**
-     * Stores the dice roll, creates the movement pool and switches to the movement phase.
+     * Stores the dice roll, creates the movement pool and resolves available actions.
+     *
+     * <p>Switches to the movement phase when actions are available.
+     * Otherwise, completes the turn and passes play to the opposite side.
      *
      * @param gameState the state awaiting dice
-     * @param action    the validated dice result
+     * @param action the validated dice result
      * @return the non-null resulting game state
      */
     @Override
@@ -107,38 +112,57 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
         List<Integer> diceValues = List.of(action.getFirst(), action.getSecond());
         List<Integer> movementPool = createMovementPool(action);
 
-        MoveContext moveContext = MoveContext.from(gameState)
+        MoveContext context = MoveContext.from(gameState)
                 .setDiceValues(diceValues)
                 .setMovementPool(movementPool);
-        Map<Integer, Set<AllowedMove>> allowedMoves = moveResolver.resolve(moveContext);
+        moveResolver.resolve(context);
 
-        return gameState.toBuilder()
+        var builder = gameState.toBuilder()
                 .diceValues(diceValues)
                 .remainingDiceValues(movementPool)
                 .gamePhase(GamePhase.AWAITING_MOVE)
-                .allowedMoves(allowedMoves)
-                .build();
+                .allowedMoves(context.getAllowedMoves())
+                .allowedBearOffs(context.getAllowedBearOffs());
+
+        // Pass play to the opposite side when the roll permits no action.
+        if (context.hasNoAvailableMoves()) {
+            StandardCheckerColor activeColor = gameState.getActiveColor();
+            Map<StandardCheckerColor, Boolean> firstTurns = new EnumMap<>(StandardCheckerColor.class);
+            firstTurns.putAll(gameState.getFirstTurns());
+            firstTurns.put(activeColor, false);
+
+            builder.activeColor(StandardCheckerColor.getOpposite(activeColor))
+                    .gamePhase(GamePhase.AWAITING_DICE)
+                    .diceValues(List.of())
+                    .remainingDiceValues(List.of())
+                    .headMoves(0)
+                    .firstTurns(Map.copyOf(firstTurns))
+                    .allowedMoves(Map.of())
+                    .allowedBearOffs(Map.of());
+        }
+
+        return builder.build();
     }
 
     /**
      * Moves a checker between side-relative route points and recalculates available movements.
      *
      * <p>Consumes one matching movement value and updates the number of head departures.
-     * If the movement pool or available movements are empty, passes play to the opposite side.
+     * If the movement pool is empty or no actions remain, passes play to the opposite side.
      * The supplied state remains unchanged.
      *
      * @param gameState the state awaiting a movement
-     * @param action    the validated movement action
+     * @param action the validated movement action
      * @return the non-null resulting game state
-     * @throws EngineCommandException if the required movement value is unavailable
+     * @throws EngineCommandException if the movement is not permitted or its die value is unavailable
      */
     @Override
     protected LongGameState processMove(LongGameState gameState, Move action) {
+        int diceValue = action.getDiceValue();
         int from = action.getFrom();
-        int to = action.getTo();
-        int diceValue = to - from;
+        int to = from + diceValue;
 
-        // TODO Validate movement legality, source ownership and destination availability.
+        validateMove(gameState.getAllowedMoves(), from, diceValue);
 
         // Consume one matching movement value.
         List<Integer> movementPool = new ArrayList<>(gameState.getRemainingDiceValues());
@@ -155,22 +179,23 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
         int headMoves = gameState.getHeadMoves() + (from == HEAD_POINT ? 1 : 0);
         List<Integer> remainingDiceValues = List.copyOf(movementPool);
         MoveContext context = MoveContext.from(gameState)
-                .setBoard(board.getState())
+                .setBoardState(board.getState())
                 .setMovementPool(remainingDiceValues)
                 .setHeadMoves(headMoves);
 
         // Resolve movements for the updated position.
-        Map<Integer, Set<AllowedMove>> allowedMoves = moveResolver.resolve(context);
+        moveResolver.resolve(context);
 
         // Prepare the resulting game snapshot.
         var builder = gameState.toBuilder()
-                .board(context.getBoard())
+                .board(context.getBoardState())
                 .remainingDiceValues(remainingDiceValues)
                 .headMoves(headMoves)
-                .allowedMoves(allowedMoves);
+                .allowedMoves(context.getAllowedMoves())
+                .allowedBearOffs(context.getAllowedBearOffs());
 
         // Pass play to the opposite side when the current turn cannot continue.
-        if (remainingDiceValues.isEmpty() || allowedMoves.isEmpty()) {
+        if (remainingDiceValues.isEmpty() || context.hasNoAvailableMoves()) {
             Map<StandardCheckerColor, Boolean> firstTurns = new EnumMap<>(StandardCheckerColor.class);
             firstTurns.putAll(gameState.getFirstTurns());
             firstTurns.put(activeColor, false);
@@ -181,8 +206,10 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                     .remainingDiceValues(List.of())
                     .headMoves(0)
                     .firstTurns(Map.copyOf(firstTurns))
-                    .allowedMoves(Map.of());
+                    .allowedMoves(Map.of())
+                    .allowedBearOffs(Map.of());
         }
+
         return builder.build();
     }
 
@@ -190,19 +217,20 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
      * Bears off a checker from a side-relative route point using the selected die value.
      *
      * <p>Checks for victory before resolving further movements or passing play to the opposite side.
+     * If the game continues, stores the recalculated options and completes the turn when necessary.
      * The supplied state remains unchanged.
      *
      * @param gameState the state awaiting a movement
      * @param action the validated bearing-off action
      * @return the non-null resulting game state
-     * @throws EngineCommandException if the selected movement value is unavailable
+     * @throws EngineCommandException if bearing off is not permitted or its die value is unavailable
      */
     @Override
     protected LongGameState processBearOff(LongGameState gameState, BearOff action) {
         int from = action.getFrom();
         int diceValue = action.getDiceValue();
 
-        // TODO Validate bearing-off legality and source ownership.
+        validateMove(gameState.getAllowedBearOffs(), from, diceValue);
 
         // Consume one occurrence of the selected movement value.
         List<Integer> movementPool = new ArrayList<>(gameState.getRemainingDiceValues());
@@ -226,18 +254,21 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
             return builder.gamePhase(GamePhase.FINISHED)
                     .winner(activeColor)
                     .allowedMoves(Map.of())
+                    .allowedBearOffs(Map.of())
                     .build();
         }
 
         // Resolve movements for the updated position.
         MoveContext context = MoveContext.from(gameState)
-                .setBoard(boardState)
+                .setBoardState(boardState)
                 .setMovementPool(remainingDiceValues);
-        Map<Integer, Set<AllowedMove>> allowedMoves = moveResolver.resolve(context);
-        builder.allowedMoves(allowedMoves);
+        moveResolver.resolve(context);
+
+        builder.allowedMoves(context.getAllowedMoves())
+                .allowedBearOffs(context.getAllowedBearOffs());
 
         // Pass play to the opposite side when the current turn cannot continue.
-        if (remainingDiceValues.isEmpty() || allowedMoves.isEmpty()) {
+        if (remainingDiceValues.isEmpty() || context.hasNoAvailableMoves()) {
             Map<StandardCheckerColor, Boolean> firstTurns = new EnumMap<>(StandardCheckerColor.class);
             firstTurns.putAll(gameState.getFirstTurns());
             firstTurns.put(activeColor, false);
@@ -248,8 +279,25 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                     .remainingDiceValues(List.of())
                     .headMoves(0)
                     .firstTurns(Map.copyOf(firstTurns))
-                    .allowedMoves(Map.of());
+                    .allowedMoves(Map.of())
+                    .allowedBearOffs(Map.of());
         }
+
         return builder.build();
+    }
+
+    /**
+     * Validates an action against the supplied movement options.
+     *
+     * @param options the permitted die values grouped by source route point
+     * @param from the source route point
+     * @param diceValue the selected die value
+     * @throws EngineCommandException if the action is not permitted
+     */
+    private static void validateMove(Map<Integer, Set<Integer>> options, int from, int diceValue) {
+        Set<Integer> values = options.get(from);
+        EngineCommandException.validate(
+                values != null && values.contains(diceValue),
+                "Action is not permitted from route point %d using die value %d", from, diceValue);
     }
 }

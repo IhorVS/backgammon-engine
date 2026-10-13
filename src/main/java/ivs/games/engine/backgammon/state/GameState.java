@@ -20,7 +20,7 @@ import java.util.Set;
 @SuperBuilder(toBuilder = true)
 public class GameState {
 
-    /** The board snapshot. */
+    /** The board snapshot using physical cell indices. */
     private final BoardState<? extends Checker<?, ?>> board;
 
     /** The color of the active side. */
@@ -35,8 +35,11 @@ public class GameState {
     /** The remaining movement values, including repeated values for doubles. */
     private final List<Integer> remainingDiceValues;
 
-    /** Legal movements grouped by source playing cell index, including bearing-off options. */
-    private final Map<Integer, Set<AllowedMove>> allowedMoves;
+    /** Legal die values for movements, grouped by the active side's source route point. */
+    private final Map<Integer, Set<Integer>> allowedMoves;
+
+    /** Legal die values for bearing off, grouped by the active side's source route point. */
+    private final Map<Integer, Set<Integer>> allowedBearOffs;
 
     /** The winner's color, or null if the game has not been won. */
     private final StandardCheckerColor winner;

@@ -223,14 +223,6 @@ class AbstractBackgammonEngineTest {
     }
 
     /**
-     * Checks that a movement cannot have the same source and destination route point.
-     */
-    @Test
-    void rejectsMoveWithEqualPoints() {
-        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, 5, 5));
-    }
-
-    /**
      * Checks that bearing-off source points outside the inclusive range from one to twenty-four are rejected.
      *
      * @param point the invalid source route point
@@ -253,19 +245,41 @@ class AbstractBackgammonEngineTest {
     }
 
     /**
-     * Checks both inclusive route boundaries for every movement action type.
+     * Checks valid movements from the first route point and to the last route point.
      *
-     * <p>These checks concern route point bounds only, not game-specific movement legality.
+     * @param from the source route point
+     * @param diceValue the selected die value
+     */
+    @ParameterizedTest
+    @CsvSource({"1, 1", "1, 6", "23, 1", "18, 6"})
+    void acceptsMoveBoundaryValues(int from, int diceValue) {
+        assertDispatch(new Move(WHITE, from, diceValue), AWAITING_MOVE);
+    }
+
+    /**
+     * Checks both inclusive route boundaries for bearing off and bar entry.
+     *
+     * <p>Game-specific bearing-off and entry rules are not checked by these test handlers.
      *
      * @param point the route point at a supported boundary
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 24})
-    void acceptsMovementBoundaryPoints(int point) {
-        assertDispatch(new Move(WHITE, point, 5), AWAITING_MOVE);
-        assertDispatch(new Move(WHITE, 5, point), AWAITING_MOVE);
+    void acceptsBearOffAndEnterBoundaryPoints(int point) {
         assertDispatch(new BearOff(WHITE, point, 1), AWAITING_MOVE);
         assertDispatch(new Enter(WHITE, point), AWAITING_MOVE);
+    }
+
+    /**
+     * Checks that a movement beyond the last route point is rejected before processing.
+     *
+     * @param from the source route point
+     * @param diceValue the selected die value
+     */
+    @ParameterizedTest
+    @CsvSource({"24, 1", "19, 6"})
+    void rejectsMoveBeyondRoute(int from, int diceValue) {
+        assertRejected(state(WHITE, AWAITING_MOVE), new Move(WHITE, from, diceValue));
     }
 
     /**
