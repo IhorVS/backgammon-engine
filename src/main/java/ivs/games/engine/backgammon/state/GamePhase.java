@@ -24,5 +24,13 @@ public enum GamePhase {
      *
      * <p>No further actions are permitted.
      */
-    FINISHED
+    FINISHED,
+
+    /**
+     * The game has been aborted without a winner.
+     *
+     * <p>All other state data is preserved as it was at the moment of abortion.
+     * No further actions are permitted.
+     */
+    ABORTED
 }

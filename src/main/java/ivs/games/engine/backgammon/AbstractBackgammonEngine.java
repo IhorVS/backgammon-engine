@@ -4,6 +4,7 @@ import ivs.games.accessories.backgammonboard.CheckerColor;
 import ivs.games.accessories.backgammonboard.BoardAddressing;
 import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
 import ivs.games.engine.AbstractGameEngine;
+import ivs.games.engine.backgammon.command.Abort;
 import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Enter;
@@ -13,6 +14,7 @@ import ivs.games.engine.backgammon.state.GamePhase;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.backgammon.state.GameState;
 import ivs.games.engine.exception.EngineCommandException;
+import lombok.NonNull;
 import org.apache.commons.lang3.Validate;
 
 import java.util.List;
@@ -21,12 +23,16 @@ import java.util.List;
  * Provides common initialization checks, action validation and dispatch for backgammon engines.
  *
  * <p>The engine does not retain state belonging to an individual game.
- * Implementations must be thread-safe and return immutable states without modifying supplied data.
+ * Implementations must be thread-safe and return immutable states without modifying supplied data.</p>
  *
  * <p>Movement actions use side-relative route points from one through twenty-four.
- * Concrete engines convert them to physical board indices according to their addressing schemes.
+ * Concrete engines convert them to physical board indices according to their addressing schemes.</p>
  *
- * <p>Concrete engines create the initial position and implement state transitions according to their rules.
+ * <p>Concrete engines create the initial position and implement state transitions according to their rules.</p>
+ *
+ * <p>An abort action is permitted in any non-terminal phase when its color matches the active side.
+ * The default abort handler changes only the game phase to {@code ABORTED}, preserving the current position
+ * and other state properties. Finished and aborted games reject all further actions.</p>
  *
  * @param <S> the concrete game state type
  */
@@ -39,6 +45,7 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     private static final String WRONG_SOURCE_POINT = "Source route point must be between 1 and %d: %d";
     private static final String WRONG_DESTINATION_POINT = "Destination route point must be between 1 and %d: %d";
     private static final String UNSUPPORTED_ACTION_TYPE = "Unsupported action type: %s";
+    private static final String ILLEGAL_DIE_VALUE = "Die value must be between %d and %d: %d";
 
     /**
      * Validates the setup and creates the initial game state.
@@ -54,14 +61,25 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     }
 
     /**
-     * Checks the active color, game phase and basic action parameters.
+     * Checks that the game permits further actions, validates the active color,
+     * and performs action-specific validation.
+     *
+     * <p>All actions, including abort, require a non-null color matching the active side.
+     * Finished and aborted games reject every action.</p>
+     *
+     * <p>An abort action requires no additional validation and is permitted
+     * in any non-terminal phase. Other supported actions are checked for their
+     * required phase and basic parameters.</p>
      *
      * @param gameState the current game state
      * @param action    the action to validate
-     * @throws EngineCommandException if the action is not permitted
+     * @throws EngineCommandException if the game is finished or aborted, the action color is invalid,
+     *                                the action type is unsupported, or action-specific validation fails
      */
     @Override
     protected final void validateCommand(S gameState, GameAction action) {
+        validateGameOver(gameState.getGamePhase());
+
         CheckerColor actionActiveColor = action.getActiveColor();
         EngineCommandException.validate(actionActiveColor != null, "Active color must not be null");
 
@@ -74,15 +92,26 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
             case Move move -> validateMove(gameState, move);
             case BearOff bearOff -> validateBearOff(gameState, bearOff);
             case Enter enter -> validateEnter(gameState, enter);
+            case @SuppressWarnings("unused")Abort abort -> {}  // No action-specific validation is required.
             default -> throw new EngineCommandException(
                     UNSUPPORTED_ACTION_TYPE.formatted(action.getClass().getSimpleName()));
         }
     }
 
+    /*
+     * Rejects further actions when the game has finished or been aborted.
+     * All other phases pass this check.
+     */
+    private static void validateGameOver(@NonNull GamePhase gamePhase) {
+        EngineCommandException.validate(
+                GamePhase.FINISHED != gamePhase && GamePhase.ABORTED != gamePhase,
+                "Game is already %s; no further actions are permitted".formatted(gamePhase));
+    }
+
     /**
      * Checks the phase and destination route point for an entry action.
      *
-     * <p>Variant support and game-specific entry rules are checked during processing.
+     * <p>Variant support and game-specific entry rules are checked during processing.</p>
      *
      * @param gameState the current game state
      * @param enter     the entry action to validate
@@ -98,16 +127,21 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     }
 
     /**
-     * Checks the phase and source route point for a bearing-off action.
+     * Checks the phase, selected die value and source route point for a bearing-off action.
      *
-     * <p>Game-specific bearing-off rules are checked during processing.
+     * <p>Game-specific bearing-off rules are checked during processing.</p>
      *
      * @param gameState the current game state
      * @param bearOff   the bearing-off action to validate
-     * @throws EngineCommandException if the phase or source route point is invalid
+     * @throws EngineCommandException if the phase, die value or source route point is invalid
      */
     protected void validateBearOff(S gameState, BearOff bearOff) {
         requirePhase(gameState, GamePhase.AWAITING_MOVE);
+
+        int diceValue = bearOff.getDiceValue();
+        EngineCommandException.validate(
+                diceValue >= MIN_DICE_VALUE && diceValue <= MAX_DICE_VALUE,
+                ILLEGAL_DIE_VALUE, MIN_DICE_VALUE, MAX_DICE_VALUE, diceValue);
 
         int bearOffFrom = bearOff.getFrom();
         EngineCommandException.validate(
@@ -118,24 +152,24 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     /**
      * Checks the phase, source route point, selected die value and calculated destination bounds.
      *
-     * <p>Game-specific movement rules are checked during processing.
+     * <p>Game-specific movement rules are checked during processing.</p>
      *
      * @param gameState the current game state
-     * @param move the movement action to validate
+     * @param move      the movement action to validate
      * @throws EngineCommandException if the phase, source, die value or calculated destination is invalid
      */
     protected void validateMove(S gameState, Move move) {
         requirePhase(gameState, GamePhase.AWAITING_MOVE);
 
+        int diceValue = move.getDiceValue();
+        EngineCommandException.validate(
+                diceValue >= MIN_DICE_VALUE && diceValue <= MAX_DICE_VALUE,
+                ILLEGAL_DIE_VALUE, MIN_DICE_VALUE, MAX_DICE_VALUE, diceValue);
+
         int moveFrom = move.getFrom();
         EngineCommandException.validate(
                 moveFrom >= 1 && moveFrom <= BoardAddressing.PLAYING_CELL_COUNT,
                 WRONG_SOURCE_POINT, BoardAddressing.PLAYING_CELL_COUNT, moveFrom);
-
-        int diceValue = move.getDiceValue();
-        EngineCommandException.validate(
-                diceValue >= MIN_DICE_VALUE && diceValue <= MAX_DICE_VALUE,
-                "Die value must be between %d and %d: %d", MIN_DICE_VALUE, MAX_DICE_VALUE, diceValue);
 
         int moveTo = moveFrom + diceValue;
         EngineCommandException.validate(
@@ -165,11 +199,15 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     }
 
     /**
-     * Dispatches a validated action to its game-specific handler.
+     * Dispatches a validated action to its corresponding handler.
+     *
+     * <p>Abort actions are handled by {@link #processAbort(GameState, Abort)}.
+     * Other actions are dispatched to their game-specific handlers.</p>
      *
      * @param gameState the current game state
      * @param action    the validated action
      * @return the non-null resulting game state
+     * @throws EngineCommandException if the action type is unsupported or its handler rejects the action
      */
     @Override
     protected final S doProcessCommand(S gameState, GameAction action) {
@@ -178,9 +216,34 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
             case Move move -> processMove(gameState, move);
             case BearOff bearOff -> processBearOff(gameState, bearOff);
             case Enter enter -> processEnter(gameState, enter);
+            case Abort abort -> processAbort(gameState, abort);
             default -> throw new EngineCommandException(
                     UNSUPPORTED_ACTION_TYPE.formatted(action.getClass().getSimpleName()));
         };
+    }
+
+    /**
+     * Aborts the game while preserving its state at the time of the action.
+     *
+     * <p>The default implementation creates a state through the current state's builder
+     * and changes only its phase to {@code ABORTED}. The board position, active color,
+     * dice and other copied state properties remain unchanged.</p>
+     *
+     * <p>The supplied state is not modified. The resulting state rejects all further
+     * actions through the common command validation.</p>
+     *
+     * <p>Concrete state types must provide a builder that preserves their runtime type
+     * and additional properties, or their engines must override this method.</p>
+     *
+     * @param gameState the current state in a non-terminal phase
+     * @param abort     the validated abort action
+     * @return the non-null resulting state with phase {@code ABORTED}
+     */
+    @SuppressWarnings({"unused", "unchecked"})
+    protected S processAbort(S gameState, Abort abort) {
+        return (S) gameState.toBuilder()
+                .gamePhase(GamePhase.ABORTED)
+                .build();
     }
 
     /**
@@ -194,7 +257,7 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     /**
      * Stores the roll, expands doubles and computes available movements.
      *
-     * <p>If no movements are available, completes the turn and switches the active side.
+     * <p>If no movements are available, completes the turn and switches the active side.</p>
      *
      * @param gameState the state awaiting dice
      * @param action    the validated dice result
@@ -206,10 +269,10 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
      * Validates and applies a movement using a side-relative source point and selected die value.
      *
      * <p>Consumes one die value and recalculates available actions before determining
-     * whether the active side can continue or play passes to the opposite side.
+     * whether the active side can continue or play passes to the opposite side.</p>
      *
      * @param gameState the state awaiting a movement
-     * @param action the movement to process
+     * @param action    the movement to process
      * @return the non-null resulting game state
      * @throws EngineCommandException if the movement violates game rules
      */
@@ -219,7 +282,7 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
      * Validates and applies bearing off from a side-relative route point.
      *
      * <p>Consumes one die value and checks for game completion before computing further movements
-     * or switching the active side.
+     * or switching the active side.</p>
      *
      * @param gameState the state awaiting a movement
      * @param action    the bearing-off action to process
@@ -232,7 +295,7 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
      * Processes entry from the active side's bar to a side-relative route point.
      *
      * <p>The default implementation rejects entry. Variants supporting a bar must override this method
-     * to validate entry, consume one die value and determine the resulting state.
+     * to validate entry, consume one die value and determine the resulting state.</p>
      *
      * @param gameState the state awaiting a movement
      * @param action    the entry action to process
@@ -244,12 +307,9 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
         throw new EngineCommandException("Bar entry is not supported by this game variant");
     }
 
-    /**
-     * Requires the state to be in the specified phase.
-     *
-     * @param gameState     the current game state
-     * @param expectedPhase the phase required by the action
-     * @throws EngineCommandException if the current phase differs
+    /*
+     * Rejects an action when the current game phase differs
+     * from the phase required by that action.
      */
     private void requirePhase(S gameState, GamePhase expectedPhase) {
         GamePhase gamePhase = gameState.getGamePhase();
@@ -261,7 +321,7 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     /**
      * Creates the movement value pool from a validated dice result.
      *
-     * <p>Different values provide two movements. A double provides four equal movements.
+     * <p>Different values provide two movements. A double provides four equal movements.</p>
      *
      * @param action the validated dice result
      * @return the immutable movement value pool
@@ -274,4 +334,3 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
         return first == second ? List.of(first, first, first, first) : List.of(first, second);
     }
 }
-

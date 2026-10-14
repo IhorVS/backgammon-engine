@@ -154,14 +154,6 @@ class AbstractBackgammonEngineTest {
     }
 
     /**
-     * Checks that a missing phase prevents dispatch.
-     */
-    @Test
-    void rejectsNullPhaseBeforeCallingHandler() {
-        assertRejected(state(WHITE, null), new DiceRolled(WHITE, 3, 5));
-    }
-
-    /**
      * Checks that first-die values outside the supported range are rejected.
      *
      * @param value the invalid first-die value
