@@ -1,7 +1,7 @@
 package ivs.games.engine.backgammon;
 
-import ivs.games.accessories.backgammonboard.CheckerColor;
 import ivs.games.accessories.backgammonboard.BoardAddressing;
+import ivs.games.accessories.backgammonboard.CheckerColor;
 import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
 import ivs.games.engine.AbstractGameEngine;
 import ivs.games.engine.backgammon.command.Abort;
@@ -30,7 +30,7 @@ import java.util.List;
  *
  * <p>Concrete engines create the initial position and implement state transitions according to their rules.</p>
  *
- * <p>An abort action is permitted in any non-terminal phase when its color matches the active side.
+ * <p>A system abort action is permitted in any non-terminal phase and requires no active color.
  * The default abort handler changes only the game phase to {@code ABORTED}, preserving the current position
  * and other state properties. Finished and aborted games reject all further actions.</p>
  *
@@ -61,24 +61,26 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     }
 
     /**
-     * Checks that the game permits further actions, validates the active color,
-     * and performs action-specific validation.
+     * Checks that the game permits further actions and validates player actions.
      *
-     * <p>All actions, including abort, require a non-null color matching the active side.
-     * Finished and aborted games reject every action.</p>
+     * <p>Finished and aborted games reject every action, including system abort.</p>
      *
-     * <p>An abort action requires no additional validation and is permitted
-     * in any non-terminal phase. Other supported actions are checked for their
-     * required phase and basic parameters.</p>
+     * <p>A system abort action requires no color or action-specific validation.
+     * Other actions require a non-null color matching the active side and are checked
+     * for their required phase and basic parameters.</p>
      *
      * @param gameState the current game state
      * @param action    the action to validate
-     * @throws EngineCommandException if the game is finished or aborted, the action color is invalid,
+     * @throws EngineCommandException if the game is finished or aborted, a player action color is invalid,
      *                                the action type is unsupported, or action-specific validation fails
      */
     @Override
     protected final void validateCommand(S gameState, GameAction action) {
         validateGameOver(gameState.getGamePhase());
+        if (action instanceof Abort) {
+            // System abort requires no color or action-specific validation.
+            return;
+        }
 
         CheckerColor actionActiveColor = action.getActiveColor();
         EngineCommandException.validate(actionActiveColor != null, "Active color must not be null");
@@ -92,7 +94,6 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
             case Move move -> validateMove(gameState, move);
             case BearOff bearOff -> validateBearOff(gameState, bearOff);
             case Enter enter -> validateEnter(gameState, enter);
-            case @SuppressWarnings("unused")Abort abort -> {}  // No action-specific validation is required.
             default -> throw new EngineCommandException(
                     UNSUPPORTED_ACTION_TYPE.formatted(action.getClass().getSimpleName()));
         }
