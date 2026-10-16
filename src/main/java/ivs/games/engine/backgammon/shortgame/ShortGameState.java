@@ -4,14 +4,21 @@ import ivs.games.engine.backgammon.state.GameState;
 import lombok.Getter;
 import lombok.experimental.SuperBuilder;
 
+import java.util.Map;
+import java.util.Set;
+
 /**
- * Stores a short backgammon snapshot, including legal entries from the active side's bar.
+ * Stores an immutable short backgammon snapshot.
  *
- * <p>Stores supplied references without validation or copying. Creating code is responsible
- * for supplying immutable collections. Entry options must have a non-null destination.
+ * <p>Supplied references are stored without validation or copying.
+ * Creating code must ensure data consistency and collection immutability.</p>
  */
 @Getter
 @SuperBuilder(toBuilder = true)
 public final class ShortGameState extends GameState {
 
+    /**
+     * Legal die values for bar entry, grouped by destination route point.
+     */
+    private final Map<Integer, Set<Integer>> allowedEntries;
 }

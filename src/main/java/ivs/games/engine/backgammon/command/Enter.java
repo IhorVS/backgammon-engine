@@ -25,4 +25,13 @@ public class Enter implements GameAction {
      * The destination route point for the active side, from 1 to 24.
      */
     int to;
+
+    /**
+     * Returns the die value consumed by this entry.
+     *
+     * @return the destination route point, equal to the required die value
+     */
+    public int getDiceValue() {
+        return to;
+    }
 }
