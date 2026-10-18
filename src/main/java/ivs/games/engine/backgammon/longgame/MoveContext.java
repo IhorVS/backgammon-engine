@@ -16,9 +16,9 @@ import java.util.Set;
  * Contains current data and calculated movement options for long backgammon.
  *
  * <p>Stores supplied references without validation or copying. Creating code is responsible
- * for data consistency and immutability of the board snapshot and collections.
+ * for data consistency and immutability of the board snapshot and collections.</p>
  *
- * <p>The resolver replaces both movement option maps with the results of each calculation.
+ * <p>The resolver replaces both movement option maps with the results of each calculation.</p>
  */
 @Data
 @Accessors(chain = true)
@@ -62,7 +62,7 @@ class MoveContext {
      * Creates a movement context from the supplied game state.
      *
      * <p>Immutable board and collection references are shared with the state.
-     * Existing movement options are transferred without recalculation.
+     * Existing movement options are transferred without recalculation.</p>
      *
      * @param state the game state supplying the context data
      * @return the populated movement context

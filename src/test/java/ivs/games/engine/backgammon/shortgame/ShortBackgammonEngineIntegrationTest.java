@@ -503,6 +503,195 @@ class ShortBackgammonEngineIntegrationTest {
                 () -> engine.processCommand(aborted, new Abort()));
     }
 
+    /**
+     * Verifies that a checker hit during bearing off must enter and return home
+     * before bearing off can resume.
+     *
+     * @param color the side whose checker is hit
+     */
+    @ParameterizedTest
+    @EnumSource(StandardCheckerColor.class)
+    void hitDuringBearingOffRequiresEntryAndReturnHome(StandardCheckerColor color) {
+        StandardCheckerColor opponent = StandardCheckerColor.getOpposite(color);
+        ShortGameState original = position(
+                opponent, Map.of(6, 1, 14, 14), Map.of(1, 1, 7, 1), 0);
+
+        ShortGameState opponentRoll = engine.processCommand(original, new DiceRolled(opponent, 1, 2));
+        ShortGameState hit = engine.processCommand(opponentRoll, new Move(opponent, 6, 1));
+        ShortGameState opponentCompleted = engine.processCommand(hit, new Move(opponent, 7, 2));
+
+        assertTurnPassed(opponentCompleted, color);
+        assertEquals(1, hit.getBoard().getBars().get(color).size());
+        assertEquals(13, hit.getBoard().getBorneOff().get(color).size());
+
+        ShortGameState entryRoll = engine.processCommand(opponentCompleted, new DiceRolled(color, 1, 6));
+        assertTrue(entryRoll.getAllowedMoves().isEmpty());
+        assertTrue(entryRoll.getAllowedBearOffs().isEmpty());
+        assertThrows(EngineCommandException.class,
+                () -> engine.processCommand(entryRoll, new BearOff(color, 24, 1)));
+
+        ShortGameState entered = engine.processCommand(entryRoll, new Enter(color, 1));
+        assertTrue(entered.getBoard().getBars().get(color).isEmpty());
+        assertTrue(entered.getAllowedBearOffs().isEmpty());
+        assertThrows(EngineCommandException.class,
+                () -> engine.processCommand(entered, new BearOff(color, 24, 6)));
+
+        ShortGameState outsideHome = engine.processCommand(entered, new Move(color, 1, 6));
+        assertTurnPassed(outsideHome, opponent);
+
+        ShortGameState replyRoll = engine.processCommand(outsideHome, new DiceRolled(opponent, 1, 1));
+        ShortGameState replyFirst = engine.processCommand(replyRoll, new Move(opponent, 14, 1));
+        ShortGameState replySecond = engine.processCommand(replyFirst, new Move(opponent, 14, 1));
+        ShortGameState replyThird = engine.processCommand(replySecond, new Move(opponent, 14, 1));
+        ShortGameState replyCompleted = engine.processCommand(replyThird, new Move(opponent, 14, 1));
+        assertTurnPassed(replyCompleted, color);
+
+        ShortGameState returnRoll = engine.processCommand(replyCompleted, new DiceRolled(color, 6, 6));
+        ShortGameState returning = engine.processCommand(returnRoll, new Move(color, 7, 6));
+        assertTrue(returning.getAllowedBearOffs().isEmpty());
+
+        ShortGameState home = engine.processCommand(returning, new Move(color, 13, 6));
+        assertTrue(home.getAllowedBearOffs().get(19).contains(6));
+        assertEquals(List.of(6, 6), home.getRemainingDiceValues());
+
+        ShortGameState firstOff = engine.processCommand(home, new BearOff(color, 19, 6));
+        ShortGameState finished = engine.processCommand(firstOff, new BearOff(color, 24, 6));
+        assertEquals(FINISHED, finished.getGamePhase());
+        assertEquals(color, finished.getWinner());
+        assertEquals(15, finished.getBoard().getBorneOff().get(color).size());
+        assertTrue(original.getBoard().getBars().get(color).isEmpty());
+        assertEquals(13, original.getBoard().getBorneOff().get(color).size());
+        assertEquals(1, stackSize(outsideHome, color, 7));
+    }
+
+    /**
+     * Verifies that multiple bar checkers enter using separate double values.
+     * Ordinary movement becomes available only after the last entry.
+     *
+     * @param color the entering side
+     */
+    @ParameterizedTest
+    @EnumSource(StandardCheckerColor.class)
+    void doubleEntersAllBarCheckersBeforeOrdinaryMovement(StandardCheckerColor color) {
+        ShortGameState original = position(color, Map.of(8, 12), Map.of(20, 15), 3);
+        ShortGameState rolled = engine.processCommand(original, new DiceRolled(color, 2, 2));
+        assertEquals(List.of(2, 2, 2, 2), rolled.getRemainingDiceValues());
+        assertEquals(Map.of(2, Set.of(2)), rolled.getAllowedEntries());
+        assertTrue(rolled.getAllowedMoves().isEmpty());
+
+        ShortGameState first = engine.processCommand(rolled, new Enter(color, 2));
+        assertEquals(2, first.getBoard().getBars().get(color).size());
+        assertEquals(List.of(2, 2, 2), first.getRemainingDiceValues());
+        assertTrue(first.getAllowedMoves().isEmpty());
+        assertThrows(EngineCommandException.class,
+                () -> engine.processCommand(first, new Move(color, 8, 2)));
+
+        ShortGameState second = engine.processCommand(first, new Enter(color, 2));
+        assertEquals(1, second.getBoard().getBars().get(color).size());
+        assertEquals(List.of(2, 2), second.getRemainingDiceValues());
+        assertTrue(second.getAllowedMoves().isEmpty());
+
+        ShortGameState third = engine.processCommand(second, new Enter(color, 2));
+        assertTrue(third.getBoard().getBars().get(color).isEmpty());
+        assertEquals(3, stackSize(third, color, 2));
+        assertEquals(List.of(2), third.getRemainingDiceValues());
+        assertTrue(third.getAllowedEntries().isEmpty());
+        assertTrue(third.getAllowedMoves().get(2).contains(2));
+
+        ShortGameState completed = engine.processCommand(third, new Move(color, 2, 2));
+        assertTurnPassed(completed, StandardCheckerColor.getOpposite(color));
+        assertEquals(2, stackSize(completed, color, 2));
+        assertEquals(1, stackSize(completed, color, 4));
+        assertEquals(3, original.getBoard().getBars().get(color).size());
+    }
+
+    /**
+     * Verifies passing after only part of a double can be consumed
+     * because every remaining continuation is blocked.
+     *
+     * @param color the moving side
+     */
+    @ParameterizedTest
+    @EnumSource(StandardCheckerColor.class)
+    void blockedContinuationEndsPartiallyUsedDouble(StandardCheckerColor color) {
+        ShortGameState original = position(color, Map.of(8, 1), Map.of(14, 2, 20, 13), 0);
+        ShortGameState rolled = engine.processCommand(original, new DiceRolled(color, 2, 2));
+        assertEquals(Map.of(8, Set.of(2)), rolled.getAllowedMoves());
+
+        ShortGameState first = engine.processCommand(rolled, new Move(color, 8, 2));
+        assertEquals(AWAITING_MOVE, first.getGamePhase());
+        assertEquals(List.of(2, 2, 2), first.getRemainingDiceValues());
+        assertEquals(Map.of(10, Set.of(2)), first.getAllowedMoves());
+
+        ShortGameState completed = engine.processCommand(first, new Move(color, 10, 2));
+        assertTurnPassed(completed, StandardCheckerColor.getOpposite(color));
+        assertEquals(1, stackSize(completed, color, 12));
+        assertEquals(0, stackSize(completed, color, 8));
+        assertEquals(0, stackSize(completed, color, 10));
+        assertEquals(2, stackSize(completed, color, 14));
+        assertEquals(List.of(2, 2, 2), first.getRemainingDiceValues());
+    }
+
+    /**
+     * Verifies that an earlier home checker permits exact bearing off
+     * but prevents oversize bearing off from the same source.
+     *
+     * @param color the active side
+     */
+    @ParameterizedTest
+    @EnumSource(StandardCheckerColor.class)
+    void exactBearingOffIsAllowedButOversizeIsRejectedWithEarlierChecker(StandardCheckerColor color) {
+        ShortGameState original = position(color, Map.of(19, 1, 24, 1), Map.of(1, 15), 0);
+        ShortGameState rolled = engine.processCommand(original, new DiceRolled(color, 1, 2));
+        assertEquals(Map.of(24, Set.of(1)), rolled.getAllowedBearOffs());
+        assertThrows(EngineCommandException.class,
+                () -> engine.processCommand(rolled, new BearOff(color, 24, 2)));
+
+        ShortGameState borneOff = engine.processCommand(rolled, new BearOff(color, 24, 1));
+        assertEquals(14, borneOff.getBoard().getBorneOff().get(color).size());
+        assertEquals(List.of(2), borneOff.getRemainingDiceValues());
+        assertEquals(Map.of(19, Set.of(2)), borneOff.getAllowedMoves());
+        assertTrue(borneOff.getAllowedBearOffs().isEmpty());
+
+        ShortGameState completed = engine.processCommand(borneOff, new Move(color, 19, 2));
+        assertTurnPassed(completed, StandardCheckerColor.getOpposite(color));
+        assertEquals(1, stackSize(completed, color, 21));
+        assertEquals(0, stackSize(completed, color, 24));
+        assertNull(completed.getWinner());
+        assertEquals(13, original.getBoard().getBorneOff().get(color).size());
+        assertEquals(1, stackSize(original, color, 24));
+    }
+
+    /**
+     * Verifies mandatory use of both dice on separate checkers
+     * when their combined destination is blocked.
+     *
+     * @param color the moving side
+     */
+    @ParameterizedTest
+    @EnumSource(StandardCheckerColor.class)
+    void bothValuesAreUsedOnSeparateCheckersWhenCombinedMovementIsBlocked(StandardCheckerColor color) {
+        ShortGameState original = position(color, Map.of(8, 2), Map.of(11, 2, 20, 13), 0);
+        ShortGameState rolled = engine.processCommand(original, new DiceRolled(color, 1, 2));
+        assertEquals(Map.of(8, Set.of(1, 2)), rolled.getAllowedMoves());
+
+        ShortGameState first = engine.processCommand(rolled, new Move(color, 8, 1));
+        assertEquals(AWAITING_MOVE, first.getGamePhase());
+        assertEquals(List.of(2), first.getRemainingDiceValues());
+        assertEquals(Map.of(8, Set.of(2)), first.getAllowedMoves());
+        assertThrows(EngineCommandException.class,
+                () -> engine.processCommand(first, new Move(color, 9, 2)));
+
+        ShortGameState completed = engine.processCommand(first, new Move(color, 8, 2));
+        assertTurnPassed(completed, StandardCheckerColor.getOpposite(color));
+        assertEquals(0, stackSize(completed, color, 8));
+        assertEquals(1, stackSize(completed, color, 9));
+        assertEquals(1, stackSize(completed, color, 10));
+        assertEquals(2, stackSize(completed, color, 11));
+        assertEquals(2, stackSize(original, color, 8));
+        assertEquals(1, stackSize(first, color, 8));
+    }
+
     /*
      * Creates a scenario awaiting dice.
      * Both placement maps use active-side route coordinates.

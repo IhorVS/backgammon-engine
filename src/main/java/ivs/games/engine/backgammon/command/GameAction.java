@@ -4,19 +4,19 @@ import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
 import ivs.games.engine.Command;
 
 /**
- * An action submitted on behalf of a side in a backgammon game.
+ * A player or system action submitted to a backgammon engine.
  *
- * <p>The engine checks that the active color matches the current player's color
- * and that the action type is permitted in the current game phase.
+ * <p>Player actions require a color matching the active side. System {@link Abort}
+ * actions require no color. The engine checks phase restrictions before processing.</p>
  *
- * <p>Implementations must be immutable.
+ * <p>Implementations must be immutable.</p>
  */
 public interface GameAction extends Command {
 
     /**
      * Returns the color of the side performing this action.
      *
-     * @return the non-null active color
+     * @return the active color for player actions, or {@code null} for system abort
      */
     StandardCheckerColor getActiveColor();
 }

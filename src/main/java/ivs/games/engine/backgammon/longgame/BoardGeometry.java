@@ -9,7 +9,7 @@ import lombok.experimental.UtilityClass;
  * Defines board geometry and side-relative addressing for long backgammon.
  *
  * <p>Physical board indices run counterclockwise from zero at the bottom-left corner.
- * Route points run from one at each side's head to twenty-four before bearing off.
+ * Route points run from one at each side's head to twenty-four before bearing off.</p>
  *
  * <pre>
  *              WHITE HOME
@@ -25,7 +25,7 @@ import lombok.experimental.UtilityClass;
  *
  * <p>Both sides move toward increasing board indices, wrapping from twenty-three to zero.
  * White starts at board index zero; black starts at board index twelve.
- * Each side's home occupies route points nineteen through twenty-four.
+ * Each side's home occupies route points nineteen through twenty-four.</p>
  *
  * <pre>{@code
  * ADDRESSING.toBoardIndex(StandardCheckerColor.WHITE, 1)  == 0
@@ -35,7 +35,7 @@ import lombok.experimental.UtilityClass;
  * }</pre>
  *
  * <p>A target route point beyond twenty-four is a bearing-off candidate and must not
- * be passed to {@code ADDRESSING.toBoardIndex()}. Bearing-off legality is checked by game rules.
+ * be passed to {@code ADDRESSING.toBoardIndex()}. Bearing-off legality is checked by game rules.</p>
  */
 @UtilityClass
 class BoardGeometry {

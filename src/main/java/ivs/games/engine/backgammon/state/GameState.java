@@ -14,7 +14,7 @@ import java.util.Set;
  * Stores an immutable game snapshot shared by backgammon variants.
  *
  * <p>Stores supplied references without validation or copying. Creating code is responsible
- * for the correctness and immutability of all supplied data, including nested collections.
+ * for the correctness and immutability of all supplied data, including nested collections.</p>
  */
 @Getter
 @SuperBuilder(toBuilder = true)
@@ -32,7 +32,12 @@ public class GameState {
     /** The two values from the current dice roll, or an empty list while awaiting dice. */
     private final List<Integer> diceValues;
 
-    /** The remaining movement values, including repeated values for doubles. */
+    /**
+     * The remaining movement values, including repeated values for doubles.
+     *
+     * <p>Cleared when a turn ends. Unused values may remain after victory;
+     * system abort preserves the pool present at cancellation.</p>
+     */
     private final List<Integer> remainingDiceValues;
 
     /** Legal die values for movements, grouped by the active side's source route point. */

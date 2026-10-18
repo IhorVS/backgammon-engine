@@ -1,241 +1,85 @@
-BACKGAMMON GAME FLOW
-===================
+BACKGAMMON ENGINE FLOW
+======================
 
-Temporary design notes. Move validation details are not specified here.
-The session rolls dice. The engine processes commands and returns a new state.
-Waiting for commands belongs to the session, not to the engine.
+The engine processes one command and returns a new state. The session owns the
+current state, history, input and dice generation. The engine never waits for input.
+
+COORDINATES AND COMMANDS
+-----------------------
+Board snapshots use physical indices 0..23.
+Commands use active-side route points 1..24, increasing towards bearing off.
+The virtual exact bearing-off destination is 25; it is not a physical board cell.
+
+DiceRolled(color, first, second): externally generated values 1..6.
+Move(color, from, diceValue): move from 'from' to 'from + diceValue'.
+BearOff(color, from, diceValue): remove a checker using the selected value.
+Enter(color, to): enter from the bar; getDiceValue() returns 'to'.
+Abort(): colorless system cancellation.
 
 PHASES
 ------
-AWAITING_DICE : Only a dice-result command with two rolled values is accepted.
-AWAITING_MOVE : Only movement commands supported by the game variant are accepted.
-FINISHED      : No commands are accepted.
+AWAITING_DICE: DiceRolled or Abort.
+AWAITING_MOVE: variant-supported movement commands or Abort.
+FINISHED: reject every command.
+ABORTED: reject every command, including another Abort.
 
-For long backgammon, movement commands are Move(from, to) and BearOff(from).
-Enter(to) is reserved for variants using a bar.
+START
+-----
+The session supplies GameSetup(startingColor).
+The engine creates the variant's initial arrangement with fifteen checkers per side.
+It returns AWAITING_DICE, empty dice pools and option maps, and no winner.
+Long backgammon also initializes headMoves and firstTurns.
 
-1. START GAME
--------------
-Create the board and initial checker arrangement.
-Establish the first player (the selection mechanism is to be agreed separately).
-Set currentPlayer to that player's color.
-Initialize turn-specific data and first-turn flags.
-Set winner to null; clear the dice-value pool and allowed moves.
-Return state with phase = AWAITING_DICE.
+ROLL
+----
+Validate phase, player color and both values.
+Store the two-value roll; expand a double into four movement values.
+Resolve legal first actions, including maximum dice usage and the higher-value rule.
+If any action is available, return AWAITING_MOVE with the resolved option maps.
+Otherwise, complete the turn and return AWAITING_DICE for the opposite side.
 
-2. RECEIVE DICE RESULT
-----------------------
-The session rolls two dice and submits their values to the engine.
+ACTION
+------
+Validate phase, color, parameters and resolved action availability.
+Short backgammon also explicitly validates source, bar, destination and home conditions.
+Apply the action on an independent board; move a hit checker to its bar if applicable.
+Consume one occurrence of the selected movement value.
 
-The engine:
-  a. Requires phase = AWAITING_DICE and validates the supplied values.
-  b. Stores the original roll.
-  c. Initializes remainingDiceValues:
-       roll 3,5 -> [3,5]
-       roll 4,4 -> [4,4,4,4]
-  d. Computes allowed moves using the current board and remaining values.
-  e. If allowed moves exist, returns phase = AWAITING_MOVE.
-  f. Otherwise, ends the turn (section 4).
+If the fifteenth checker was borne off:
+  - set FINISHED and winner;
+  - clear all available action maps;
+  - preserve the active side, original roll and any unused movement values;
+  - return without resolving another action or switching sides.
 
-3. PROCESS ONE MOVEMENT
------------------------
-The session submits the player's movement command.
-Each movement consumes one remaining die value, including movements on a double.
+Otherwise, resolve actions for the updated position and remaining movement values.
+Return AWAITING_MOVE for the same side if actions remain and the pool is not empty.
+If the pool is exhausted or no action remains, complete the turn.
 
-The engine:
-  a. Requires phase = AWAITING_MOVE.
-  b. Validates the command against allowed moves and game rules.
-  c. Applies the movement and removes one occurrence of the consumed value.
-  d. Updates turn-specific data, including the head departure count.
-  e. Checks whether the game has ended BEFORE recalculating moves or switching players.
-       If yes:
-         - Set winner to the winning side's color.
-         - Clear allowed moves.
-         - Return phase = FINISHED.
-         - Do NOT switch players. Unused die values cannot require further play.
-  f. If the game continues, recalculates allowed moves using the remaining values.
-  g. If allowed moves exist:
-       - Keep currentPlayer unchanged.
-       - Return phase = AWAITING_MOVE.
-  h. Otherwise, ends the turn (section 4).
-
-4. END TURN AND SWITCH PLAYER
------------------------------
-Complete the outgoing player's turn bookkeeping, including the first-turn flag.
-Switch currentPlayer to the other side.
-Clear original dice values, remainingDiceValues and allowed moves.
-Reset turn-specific counters, including headMoves = 0.
-Return phase = AWAITING_DICE.
-
-The same transition applies when a roll has no legal moves and when no legal
-continuations remain after a movement. Unusable remaining values are discarded.
-
-5. FINISH SESSION
------------------
-When the session receives phase = FINISHED:
-  - Save the final state to history, including winner.
-  - Close the session.
-
-TRANSITIONS
------------
-Start game ----------------------------------------> AWAITING_DICE
-
-AWAITING_DICE + dice result:
-  allowed moves exist -----------------------------> AWAITING_MOVE
-  no allowed moves -> switch player ---------------> AWAITING_DICE
-
-AWAITING_MOVE + valid movement:
-  game ended --------------------------------------> FINISHED
-  game continues, allowed moves exist -------------> AWAITING_MOVE (same player)
-  game continues, no moves -> switch player -------> AWAITING_DICE
-
-FINISHED ------------------------------------------> No further commands
-
-ASCII FLOWCHART
+TURN COMPLETION
 ---------------
-RETURN ends an engine call. Waiting and command submission belong to the session.
-[A], [B] and [C] are connectors between the sections below.
+Switch the active side; return AWAITING_DICE.
+Clear the original roll, remaining values and available action maps.
+In long backgammon, reset headMoves and clear the outgoing side's first-turn flag.
+Unusable movement values are discarded. There is no explicit pass command.
 
-+------------------------------------+
-| START GAME                         |
-| Create board and initial setup     |
-| Establish first player             |
-+------------------+-----------------+
-                   |
-                   v
-                  [A]
+SYSTEM ABORT
+------------
+After rejecting terminal phases, Abort bypasses player color validation.
+The default handler changes only gamePhase to ABORTED using toBuilder().
+Board, active side, dice, action maps and variant-specific fields are preserved.
+No winner is declared. Session policy determines when to submit Abort.
 
-[A] DICE PHASE
+ERRORS AND OWNERSHIP
+--------------------
+Rejected commands throw EngineCommandException and return no new state.
+Technical failures follow the shared AbstractGameEngine contract.
+Supplied state containers store references without copying or validating them;
+creating code must supply consistent immutable snapshots and collections.
+Available action maps belong to the supplied snapshot; do not edit them manually.
 
-+------------------------------------+
-| ENGINE: RETURN AWAITING_DICE        |
-+------------------+-----------------+
-                   |
-                   v
-+------------------------------------+
-| SESSION: Roll dice                 |
-| Submit dice-result command         |
-+------------------+-----------------+
-                   |
-                   v
-+------------------------------------+
-| ENGINE: Validate phase and command |---- invalid ----> [ERROR]
-+------------------+-----------------+
-                   |
-                   v
-+------------------------------------+
-| Store original roll                |
-| Initialize remaining value pool    |
-| Compute allowed moves              |
-+------------------+-----------------+
-                   |
-                   v
-+------------------------------------+
-| Any allowed moves?                 |---- NO ---------> [C]
-+------------------+-----------------+
-                   |
-                  YES
-                   |
-                   v
-                  [B]
-
-[B] MOVEMENT PHASE
-
-+------------------------------------+
-| ENGINE: RETURN AWAITING_MOVE        |<--------------------------+
-+------------------+-----------------+                           |
-                   |                                             |
-                   v                                             |
-+------------------------------------+                           |
-| SESSION: Accept player movement    |                           |
-| Submit movement command            |                           |
-+------------------+-----------------+                           |
-                   |                                             |
-                   v                                             |
-+------------------------------------+                           |
-| ENGINE: Validate phase and command |---- invalid ----> [ERROR]  |
-+------------------+-----------------+                           |
-                   |                                             |
-                   v                                             |
-+------------------------------------+                           |
-| Apply movement                     |                           |
-| Consume one remaining value        |                           |
-| Update turn-specific data          |                           |
-+------------------+-----------------+                           |
-                   |                                             |
-                   v                                             |
-+------------------------------------+                           |
-| Game ended?                        |---- YES --------> [FINISH] |
-+------------------+-----------------+                           |
-                   |                                             |
-                  NO                                             |
-                   |                                             |
-                   v                                             |
-+------------------------------------+                           |
-| Recalculate allowed moves          |                           |
-| using remaining values             |                           |
-+------------------+-----------------+                           |
-                   |                                             |
-                   v                                             |
-+------------------------------------+                           |
-| Any allowed moves?                 |---- YES -------------------+
-+------------------+-----------------+
-                   |
-                  NO
-                   |
-                   v
-                  [C]
-
-[C] END TURN
-
-+------------------------------------+
-| Complete outgoing turn bookkeeping |
-| Switch current player              |
-| Clear dice pool and allowed moves  |
-| Reset turn-specific counters       |
-+------------------+-----------------+
-                   |
-                   v
-                  [A]
-
-[FINISH]
-
-+------------------------------------+
-| ENGINE: Set winner                 |
-| Clear allowed moves                |
-| RETURN FINISHED                    |
-| Do NOT switch players              |
-+------------------+-----------------+
-                   |
-                   v
-+------------------------------------+
-| SESSION: Save final state          |
-| Close the session                  |
-+------------------------------------+
-
-[ERROR]
-
-+------------------------------------+
-| Throw EngineCommandException       |
-| Input state remains unchanged      |
-| No player switch or value consumed |
-+------------------------------------+
-
-ERRORS AND STATE OWNERSHIP
---------------------------
-A command not permitted in the current phase throws EngineCommandException.
-An illegal movement also throws EngineCommandException.
-The input state remains unchanged when processing fails.
-Technical failures follow the common game-engine exception contract.
-
-Each engine call returns and ends; it never waits, rolls dice or loops over turns.
-The session stores the returned state and initiates the next operation.
-State containers store references without validation or copying.
-The code forming states ensures consistency and immutable referenced data.
-
-OPEN QUESTIONS
---------------
-- Selection of the first player.
-- Detailed move validation and ambiguous die consumption for bearing off.
-- Detection and handling of a position with no possible moves for either side.
-- Whether final states retain or clear the remaining dice values for history.
+BOUNDARIES
+----------
+Starting side selection and opening-roll orchestration belong to the session.
+The engine accepts any two valid values in AWAITING_DICE, including opening doubles.
+The engine records a winner, not gammon/backgammon scores or doubling-cube stakes.
+No event generation, persistence, networking or automatic deadlock adjudication is implemented.

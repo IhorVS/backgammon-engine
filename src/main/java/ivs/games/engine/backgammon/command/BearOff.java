@@ -7,9 +7,9 @@ import lombok.Value;
  * Bears off the active side's top checker from a side-relative route point using the specified die value.
  *
  * <p>The engine converts the source route point to a physical board index using the active color
- * and validates bearing off with the selected die value according to game rules.
+ * and validates bearing off with the selected die value according to game rules.</p>
  *
- * <p>This action is accepted only while awaiting a movement.
+ * <p>This action is accepted only while awaiting a movement.</p>
  */
 @SuppressWarnings("ClassCanBeRecord")
 @Value

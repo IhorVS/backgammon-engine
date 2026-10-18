@@ -28,9 +28,9 @@ import static ivs.games.engine.backgammon.longgame.BoardGeometry.HEAD_POINT;
  *
  * <p>The engine does not retain state belonging to an individual game.
  * Legal movements and bearing-off options are determined by a shared move resolver.
- * Actions are validated against the options stored in the supplied state.
+ * Actions are validated against the options stored in the supplied state.</p>
  *
- * <p>Processing creates new game snapshots without modifying the supplied state.
+ * <p>Processing creates new game snapshots without modifying the supplied state.</p>
  */
 public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState> {
 
@@ -64,7 +64,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
      * Creates the initial long backgammon position.
      *
      * <p>Each side starts with fifteen checkers on its head. The starting side awaits a dice roll.
-     * Both sides retain their first-turn status, and no movement values have been assigned.
+     * Both sides retain their first-turn status, and no movement values have been assigned.</p>
      *
      * @param initialSetup the validated initial setup
      * @return the non-null initial game state
@@ -101,7 +101,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
      * Stores the dice roll, creates the movement pool and resolves available actions.
      *
      * <p>Switches to the movement phase when actions are available.
-     * Otherwise, completes the turn and passes play to the opposite side.
+     * Otherwise, completes the turn and passes play to the opposite side.</p>
      *
      * @param gameState the state awaiting dice
      * @param action the validated dice result
@@ -149,7 +149,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
      *
      * <p>Consumes one matching movement value and updates the number of head departures.
      * If the movement pool is empty or no actions remain, passes play to the opposite side.
-     * The supplied state remains unchanged.
+     * The supplied state remains unchanged.</p>
      *
      * @param gameState the state awaiting a movement
      * @param action the validated movement action
@@ -218,7 +218,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
      *
      * <p>Checks for victory before resolving further movements or passing play to the opposite side.
      * If the game continues, stores the recalculated options and completes the turn when necessary.
-     * The supplied state remains unchanged.
+     * The supplied state remains unchanged.</p>
      *
      * @param gameState the state awaiting a movement
      * @param action the validated bearing-off action

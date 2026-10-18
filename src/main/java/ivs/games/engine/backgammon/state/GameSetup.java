@@ -7,7 +7,7 @@ import lombok.Value;
  * Defines the starting side of a standard backgammon game.
  *
  * <p>The engine creates both sides and the initial checker arrangement.
- * The session determines which side starts.
+ * The session determines which side starts.</p>
  */
 @SuppressWarnings("ClassCanBeRecord")
 @Value

@@ -453,6 +453,10 @@ class AbstractBackgammonEngineTest {
 
             assertEquals(longOriginal.getHeadMoves(), longActual.getHeadMoves());
             assertSame(longOriginal.getFirstTurns(), longActual.getFirstTurns());
+        } else if (original instanceof ShortGameState shortOriginal) {
+            ShortGameState shortActual = assertInstanceOf(ShortGameState.class, actual);
+
+            assertSame(shortOriginal.getAllowedEntries(), shortActual.getAllowedEntries());
         }
     }
 
@@ -578,7 +582,7 @@ class AbstractBackgammonEngineTest {
     }
 
     /*
-     * Supplies actual variant states with non-empty base and long-game data.
+     * Supplies actual variant states with non-empty base and variant-specific data.
      * This exercises the Lombok builders used by production state classes.
      */
     private static Stream<GameState> variantStates() {
@@ -607,6 +611,7 @@ class AbstractBackgammonEngineTest {
                 .remainingDiceValues(List.of(5))
                 .allowedMoves(Map.of(7, Set.of(5)))
                 .allowedBearOffs(Map.of(24, Set.of(5)))
+                .allowedEntries(Map.of(5, Set.of(5)))
                 .winner(null)
                 .build();
 

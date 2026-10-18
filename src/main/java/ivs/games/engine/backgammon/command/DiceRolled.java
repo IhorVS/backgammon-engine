@@ -6,7 +6,7 @@ import lombok.Value;
 /**
  * Supplies the result of rolling two dice for the active side.
  *
- * <p>The session generates the values. The engine accepts this action only while awaiting dice.
+ * <p>The session generates the values. The engine accepts this action only while awaiting dice.</p>
  */
 @SuppressWarnings("ClassCanBeRecord")
 @Value

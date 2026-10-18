@@ -20,7 +20,7 @@ import static ivs.games.engine.backgammon.longgame.BoardGeometry.LAST_POINT;
 /**
  * Calculates legal movement options for the active side in long backgammon.
  *
- * <p>Applies the following rules:
+ * <p>Applies the following rules:</p>
  * <ul>
  *     <li>Only the active side's top checker can be moved from an occupied point.</li>
  *     <li>Each action consumes one remaining die value. Doubles are represented by four equal pool values.</li>
@@ -39,20 +39,20 @@ import static ivs.games.engine.backgammon.longgame.BoardGeometry.LAST_POINT;
  *
  * <p>The first-turn head exception applies to either side without an additional check
  * that two head departures are necessary. Prime checks examine positions after each
- * individual movement and do not wrap past the opponent's bearing-off boundary.
+ * individual movement and do not wrap past the opponent's bearing-off boundary.</p>
  *
  * <p>The supplied context must describe a valid long backgammon position with no mixed-color
  * stacks or checkers on the bar. The original roll contains two values; the movement pool
- * contains up to four remaining values, each between one and six.
+ * contains up to four remaining values, each between one and six.</p>
  *
  * <p>The resolver checks continuations using independent working boards and contexts.
- * It retains only permitted first actions; the player chooses among those actions.
+ * It retains only permitted first actions; the player chooses among those actions.</p>
  *
  * <p>The supplied board snapshot and context input fields remain unchanged.
  * Both context option maps are replaced with immutable maps containing immutable, non-empty sets.
- * Map keys are source route points of the active side; set elements are permitted die values.
+ * Map keys are source route points of the active side; set elements are permitted die values.</p>
  *
- * <p>The resolver retains no game data and is thread-safe when concurrent calls use separate contexts.
+ * <p>The resolver retains no game data and is thread-safe when concurrent calls use separate contexts.</p>
  */
 class LongMoveResolver {
 
@@ -109,7 +109,7 @@ class LongMoveResolver {
     /**
      * Retains first actions allowing maximum use of the remaining movement values.
      *
-     * <p>If only one value can be used, retains actions consuming the highest playable value.
+     * <p>If only one value can be used, retains actions consuming the highest playable value.</p>
      *
      * @param context    the current movement calculation context
      * @param candidates the mutable candidates to filter
@@ -214,7 +214,7 @@ class LongMoveResolver {
      * Creates an independent working context after an individually legal action.
      *
      * <p>Preserves the active side, original roll and first-turn status.
-     * Consumes one movement value and updates head departures for ordinary movements.
+     * Consumes one movement value and updates head departures for ordinary movements.</p>
      *
      * @param context   the original working context
      * @param from      the source route point
@@ -303,7 +303,7 @@ class LongMoveResolver {
      *
      * <p>Points are examined along the opponent's route. A prime is forbidden when
      * no opposing checker has reached a point beyond its end.
-     * The route does not wrap past the opponent's bearing-off boundary.
+     * The route does not wrap past the opponent's bearing-off boundary.</p>
      *
      * @param context          the current movement calculation context
      * @param opponent         the opposing side
@@ -365,7 +365,7 @@ class LongMoveResolver {
      * Removes oversize bearing-off values except at the occupied home point furthest from the exit.
      *
      * <p>Candidates are generated only when all active checkers remaining on the board are in the home.
-     * Exact bearing-off values are retained at every occupied home point.
+     * Exact bearing-off values are retained at every occupied home point.</p>
      *
      * @param context    the context containing the board and active color
      * @param candidates the mutable candidates to filter
@@ -402,7 +402,7 @@ class LongMoveResolver {
      * Removes head departure candidates when the current turn's limit has been reached.
      *
      * <p>The first-turn doubles of three, four or six permit two head departures.
-     * Other rolls permit one head departure.
+     * Other rolls permit one head departure.</p>
      *
      * @param context    the context containing the original roll and head departure count
      * @param candidates the mutable candidates to filter
@@ -435,7 +435,7 @@ class LongMoveResolver {
      * Generates single-die candidates, excluding destinations occupied by the opponent.
      *
      * <p>Bearing-off candidates are collected only when all active checkers remaining
-     * on the board are in the home. Oversize die rules are checked separately.
+     * on the board are in the home. Oversize die rules are checked separately.</p>
      *
      * @param context    the current board, active color and remaining movement pool
      * @param candidates the mutable candidates receiving generated options

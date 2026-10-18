@@ -8,10 +8,10 @@ import lombok.Value;
  *
  * <p>The engine computes the destination route point by adding the die value to the source,
  * converts route points to physical board indices and validates movement according to game rules.
- * In variants allowing hits, hitting is performed as part of the same state transition.
+ * In variants allowing hits, hitting is performed as part of the same state transition.</p>
  *
  * <p>This action is accepted only while awaiting a movement. Bearing off requires a separate
- * {@link BearOff} action.
+ * {@link BearOff} action.</p>
  */
 @SuppressWarnings("ClassCanBeRecord")
 @Value
