@@ -4,10 +4,17 @@ import ivs.games.accessories.backgammonboard.standard.StandardBoard;
 import ivs.games.accessories.backgammonboard.standard.StandardBoardBuilder;
 import ivs.games.accessories.backgammonboard.standard.StandardChecker;
 import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
+import ivs.games.engine.GameEvent;
 import ivs.games.engine.backgammon.AbstractBackgammonEngine;
 import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Move;
+import ivs.games.engine.backgammon.event.CheckerBorneOffEvent;
+import ivs.games.engine.backgammon.event.CheckerMovedEvent;
+import ivs.games.engine.backgammon.event.DiceRolledEvent;
+import ivs.games.engine.backgammon.event.GameFinishedEvent;
+import ivs.games.engine.backgammon.event.GameStartedEvent;
+import ivs.games.engine.backgammon.event.TurnChangedEvent;
 import ivs.games.engine.backgammon.state.GamePhase;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.exception.EngineCommandException;
@@ -92,6 +99,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                 .winner(null)
                 .headMoves(0)
                 .firstTurns(firstTurns)
+                .events(List.of(new GameStartedEvent(initialSetup.getStartingColor())))
                 .allowedMoves(Map.of())
                 .allowedBearOffs(Map.of())
                 .build();
@@ -111,6 +119,8 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
     protected LongGameState processDiceRolled(LongGameState gameState, DiceRolled action) {
         List<Integer> diceValues = List.of(action.getFirst(), action.getSecond());
         List<Integer> movementPool = createMovementPool(action);
+        List<GameEvent> events = new ArrayList<>();
+        events.add(new DiceRolledEvent(gameState.getActiveColor(), action.getFirst(), action.getSecond()));
 
         MoveContext context = MoveContext.from(gameState)
                 .setDiceValues(diceValues)
@@ -130,8 +140,10 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
             Map<StandardCheckerColor, Boolean> firstTurns = new EnumMap<>(StandardCheckerColor.class);
             firstTurns.putAll(gameState.getFirstTurns());
             firstTurns.put(activeColor, false);
+            StandardCheckerColor nextColor = StandardCheckerColor.getOpposite(activeColor);
+            events.add(new TurnChangedEvent(activeColor, nextColor));
 
-            builder.activeColor(StandardCheckerColor.getOpposite(activeColor))
+            builder.activeColor(nextColor)
                     .gamePhase(GamePhase.AWAITING_DICE)
                     .diceValues(List.of())
                     .remainingDiceValues(List.of())
@@ -141,7 +153,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                     .allowedBearOffs(Map.of());
         }
 
-        return builder.build();
+        return builder.events(List.copyOf(events)).build();
     }
 
     /**
@@ -161,6 +173,8 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
         int diceValue = action.getDiceValue();
         int from = action.getFrom();
         int to = from + diceValue;
+        List<GameEvent> events = new ArrayList<>();
+        events.add(new CheckerMovedEvent(gameState.getActiveColor(), from, to, diceValue));
 
         validateMove(gameState.getAllowedMoves(), from, diceValue);
 
@@ -199,8 +213,10 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
             Map<StandardCheckerColor, Boolean> firstTurns = new EnumMap<>(StandardCheckerColor.class);
             firstTurns.putAll(gameState.getFirstTurns());
             firstTurns.put(activeColor, false);
+            StandardCheckerColor nextColor = StandardCheckerColor.getOpposite(activeColor);
+            events.add(new TurnChangedEvent(activeColor, nextColor));
 
-            builder.activeColor(StandardCheckerColor.getOpposite(activeColor))
+            builder.activeColor(nextColor)
                     .gamePhase(GamePhase.AWAITING_DICE)
                     .diceValues(List.of())
                     .remainingDiceValues(List.of())
@@ -210,7 +226,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                     .allowedBearOffs(Map.of());
         }
 
-        return builder.build();
+        return builder.events(List.copyOf(events)).build();
     }
 
     /**
@@ -242,6 +258,8 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
         StandardCheckerColor activeColor = gameState.getActiveColor();
         var board = new StandardBoard<>(gameState.getBoard());
         board.moveToBorneOff(ADDRESSING.toBoardIndex(activeColor, from));
+        List<GameEvent> events = new ArrayList<>();
+        events.add(new CheckerBorneOffEvent(activeColor, from, diceValue));
 
         var boardState = board.getState();
         List<Integer> remainingDiceValues = List.copyOf(movementPool);
@@ -251,10 +269,12 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
 
         // Finish the game immediately after the last checker is borne off.
         if (boardState.getBorneOff().get(activeColor).size() == CHECKERS_PER_SIDE) {
+            events.add(new GameFinishedEvent(activeColor));
             return builder.gamePhase(GamePhase.FINISHED)
                     .winner(activeColor)
                     .allowedMoves(Map.of())
                     .allowedBearOffs(Map.of())
+                    .events(List.copyOf(events))
                     .build();
         }
 
@@ -272,8 +292,10 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
             Map<StandardCheckerColor, Boolean> firstTurns = new EnumMap<>(StandardCheckerColor.class);
             firstTurns.putAll(gameState.getFirstTurns());
             firstTurns.put(activeColor, false);
+            StandardCheckerColor nextColor = StandardCheckerColor.getOpposite(activeColor);
+            events.add(new TurnChangedEvent(activeColor, nextColor));
 
-            builder.activeColor(StandardCheckerColor.getOpposite(activeColor))
+            builder.activeColor(nextColor)
                     .gamePhase(GamePhase.AWAITING_DICE)
                     .diceValues(List.of())
                     .remainingDiceValues(List.of())
@@ -283,7 +305,7 @@ public class LongBackgammonEngine extends AbstractBackgammonEngine<LongGameState
                     .allowedBearOffs(Map.of());
         }
 
-        return builder.build();
+        return builder.events(List.copyOf(events)).build();
     }
 
     /**

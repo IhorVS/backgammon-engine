@@ -8,6 +8,15 @@ import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Enter;
 import ivs.games.engine.backgammon.command.Move;
+import ivs.games.engine.backgammon.event.CheckerBorneOffEvent;
+import ivs.games.engine.backgammon.event.CheckerMovedEvent;
+import ivs.games.engine.backgammon.event.DiceRolledEvent;
+import ivs.games.engine.backgammon.event.GameAbortedEvent;
+import ivs.games.engine.backgammon.event.GameFinishedEvent;
+import ivs.games.engine.backgammon.event.GameStartedEvent;
+import ivs.games.engine.backgammon.event.TurnChangedEvent;
+import ivs.games.engine.backgammon.shortgame.event.CheckerEnteredEvent;
+import ivs.games.engine.backgammon.shortgame.event.CheckerHitEvent;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.exception.EngineCommandException;
 import org.junit.jupiter.api.Test;
@@ -49,6 +58,7 @@ class ShortBackgammonEngineIntegrationTest {
     void initialPositionSupportsCompleteTurnAndOpponentRoll(StandardCheckerColor color) {
         StandardCheckerColor opponent = StandardCheckerColor.getOpposite(color);
         ShortGameState initial = engine.startGame(new GameSetup(color));
+        assertEquals(List.of(new GameStartedEvent(color)), initial.getEvents());
 
         ShortGameState rolled = engine.processCommand(initial, new DiceRolled(color, 1, 2));
 
@@ -138,10 +148,16 @@ class ShortBackgammonEngineIntegrationTest {
         StandardCheckerColor opponent = StandardCheckerColor.getOpposite(color);
         ShortGameState original = position(
                 color, Map.of(8, 15), Map.of(11, 1, 20, 14), 0);
+        assertTrue(original.getEvents().isEmpty());
 
         ShortGameState rolled = engine.processCommand(original, new DiceRolled(color, 3, 2));
+        assertEquals(List.of(new DiceRolledEvent(color, 3, 2)), rolled.getEvents());
+
         ShortGameState hit = engine.processCommand(rolled, new Move(color, 8, 3));
 
+        assertEquals(List.of(
+                new CheckerHitEvent(color, opponent, 11),
+                new CheckerMovedEvent(color, 8, 11, 3)), hit.getEvents());
         assertEquals(1, hit.getBoard().getBars().get(opponent).size());
         assertEquals(List.of(man(color)), hit.getBoard().getCells()
                 .get(ADDRESSING.toBoardIndex(color, 11)));
@@ -149,12 +165,16 @@ class ShortBackgammonEngineIntegrationTest {
 
         ShortGameState completed = engine.processCommand(hit, new Move(color, 11, 2));
 
+        assertEquals(List.of(
+                new CheckerMovedEvent(color, 11, 13, 2),
+                new TurnChangedEvent(color, opponent)), completed.getEvents());
         assertTurnPassed(completed, opponent);
         assertEquals(1, stackSize(completed, color, 13));
 
         ShortGameState opponentRoll = engine.processCommand(
                 completed, new DiceRolled(opponent, 1, 2));
 
+        assertEquals(List.of(new DiceRolledEvent(opponent, 1, 2)), opponentRoll.getEvents());
         assertTrue(opponentRoll.getAllowedMoves().isEmpty());
         assertTrue(opponentRoll.getAllowedBearOffs().isEmpty());
         assertEquals(Map.of(1, Set.of(1), 2, Set.of(2)), opponentRoll.getAllowedEntries());
@@ -164,6 +184,7 @@ class ShortBackgammonEngineIntegrationTest {
 
         ShortGameState entered = engine.processCommand(opponentRoll, new Enter(opponent, 1));
 
+        assertEquals(List.of(new CheckerEnteredEvent(opponent, 1)), entered.getEvents());
         assertTrue(entered.getBoard().getBars().get(opponent).isEmpty());
         assertEquals(1, stackSize(entered, opponent, 1));
         assertTrue(entered.getAllowedEntries().isEmpty());
@@ -198,6 +219,9 @@ class ShortBackgammonEngineIntegrationTest {
 
         ShortGameState entered = engine.processCommand(rolled, new Enter(color, 3));
 
+        assertEquals(List.of(
+                new CheckerHitEvent(color, opponent, 3),
+                new CheckerEnteredEvent(color, 3)), entered.getEvents());
         assertTrue(entered.getBoard().getBars().get(color).isEmpty());
         assertEquals(1, entered.getBoard().getBars().get(opponent).size());
         assertEquals(List.of(man(color)), entered.getBoard().getCells()
@@ -230,6 +254,10 @@ class ShortBackgammonEngineIntegrationTest {
 
         ShortGameState completed = engine.processCommand(original, new DiceRolled(color, 1, 2));
 
+        assertEquals(List.of(
+                new DiceRolledEvent(color, 1, 2),
+                new TurnChangedEvent(color, StandardCheckerColor.getOpposite(color))),
+                completed.getEvents());
         assertTurnPassed(completed, StandardCheckerColor.getOpposite(color));
         assertEquals(1, completed.getBoard().getBars().get(color).size());
         assertEquals(original.getBoard().getCells(), completed.getBoard().getCells());
@@ -375,6 +403,7 @@ class ShortBackgammonEngineIntegrationTest {
 
         ShortGameState borneOff = engine.processCommand(home, new BearOff(color, 24, 1));
 
+        assertEquals(List.of(new CheckerBorneOffEvent(color, 24, 1)), borneOff.getEvents());
         assertEquals(14, borneOff.getBoard().getBorneOff().get(color).size());
         assertEquals(List.of(1, 1), borneOff.getRemainingDiceValues());
         assertEquals(1, stackSize(borneOff, color, 19));
@@ -411,6 +440,9 @@ class ShortBackgammonEngineIntegrationTest {
 
         ShortGameState finished = engine.processCommand(moved, new BearOff(color, 24, 2));
 
+        assertEquals(List.of(
+                new CheckerBorneOffEvent(color, 24, 2),
+                new GameFinishedEvent(color)), finished.getEvents());
         assertEquals(FINISHED, finished.getGamePhase());
         assertEquals(color, finished.getWinner());
         assertEquals(color, finished.getActiveColor());
@@ -478,6 +510,7 @@ class ShortBackgammonEngineIntegrationTest {
         ShortGameState rolled = engine.processCommand(original, new DiceRolled(WHITE, 1, 2));
         ShortGameState aborted = engine.processCommand(rolled, new Abort());
 
+        assertEquals(List.of(new GameAbortedEvent()), aborted.getEvents());
         assertEquals(ABORTED, aborted.getGamePhase());
         assertEquals(AWAITING_MOVE, rolled.getGamePhase());
         assertNotSame(rolled, aborted);

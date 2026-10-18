@@ -3,6 +3,8 @@ package ivs.games.engine.backgammon.state;
 import ivs.games.accessories.backgammonboard.BoardState;
 import ivs.games.accessories.backgammonboard.Checker;
 import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
+import ivs.games.engine.GameEvent;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.SuperBuilder;
 
@@ -14,7 +16,8 @@ import java.util.Set;
  * Stores an immutable game snapshot shared by backgammon variants.
  *
  * <p>Stores supplied references without validation or copying. Creating code is responsible
- * for the correctness and immutability of all supplied data, including nested collections.</p>
+ * for the correctness and immutability of all supplied data, including nested collections.
+ * The events list describes only the transition that produced this snapshot.</p>
  */
 @Getter
 @SuperBuilder(toBuilder = true)
@@ -48,4 +51,10 @@ public class GameState {
 
     /** The winner's color, or null if the game has not been won. */
     private final StandardCheckerColor winner;
+
+    /**
+     * Events produced by the operation that created this state, in occurrence order.
+     */
+    @Builder.Default
+    private final List<GameEvent> events = List.of();
 }

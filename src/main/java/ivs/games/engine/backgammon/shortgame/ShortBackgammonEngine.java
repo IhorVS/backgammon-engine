@@ -4,15 +4,24 @@ import ivs.games.accessories.backgammonboard.BoardState;
 import ivs.games.accessories.backgammonboard.Checker;
 import ivs.games.accessories.backgammonboard.standard.StandardBoard;
 import ivs.games.accessories.backgammonboard.standard.StandardChecker;
-import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
+import ivs.games.engine.GameEvent;
 import ivs.games.engine.backgammon.AbstractBackgammonEngine;
 import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Enter;
 import ivs.games.engine.backgammon.command.Move;
+import ivs.games.engine.backgammon.event.CheckerBorneOffEvent;
+import ivs.games.engine.backgammon.event.CheckerMovedEvent;
+import ivs.games.engine.backgammon.event.DiceRolledEvent;
+import ivs.games.engine.backgammon.event.GameFinishedEvent;
+import ivs.games.engine.backgammon.event.GameStartedEvent;
+import ivs.games.engine.backgammon.event.TurnChangedEvent;
+import ivs.games.engine.backgammon.shortgame.event.CheckerEnteredEvent;
+import ivs.games.engine.backgammon.shortgame.event.CheckerHitEvent;
 import ivs.games.engine.backgammon.state.GamePhase;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.exception.EngineCommandException;
+import ivs.games.accessories.backgammonboard.standard.StandardCheckerColor;
 import lombok.NonNull;
 
 import java.util.ArrayList;
@@ -102,6 +111,7 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
                 .allowedBearOffs(Map.of())
                 .allowedEntries(Map.of())
                 .winner(null)
+                .events(List.of(new GameStartedEvent(initialSetup.getStartingColor())))
                 .build();
     }
 
@@ -120,6 +130,8 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
     protected ShortGameState processDiceRolled(ShortGameState gameState, DiceRolled action) {
         List<Integer> diceValues = List.of(action.getFirst(), action.getSecond());
         List<Integer> movementPool = createMovementPool(action);
+        List<GameEvent> events = new ArrayList<>();
+        events.add(new DiceRolledEvent(gameState.getActiveColor(), action.getFirst(), action.getSecond()));
 
         MoveContext context = MoveContext.builder()
                 .boardState(gameState.getBoard())
@@ -146,7 +158,9 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
                 && context.getAllowedBearOffs().isEmpty()
                 && context.getAllowedEntries().isEmpty();
 
-        return noAvailableActions ? finishTurn(result) : result;
+        return noAvailableActions
+                ? finishTurn(result, events)
+                : result.toBuilder().events(List.copyOf(events)).build();
     }
 
     /**
@@ -174,15 +188,19 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
         int sourceIndex = ADDRESSING.toBoardIndex(color, from);
         int destinationIndex = ADDRESSING.toBoardIndex(color, to);
         var destination = board.getCell(destinationIndex);
+        List<GameEvent> events = new ArrayList<>();
 
         if (!destination.isEmpty() && destination.getTopCheckerColor() != color) {
             // validateMove() has already ensured that the opposing checker is alone.
+            events.add(new CheckerHitEvent(
+                    color, StandardCheckerColor.getOpposite(color), to));
             board.moveToBar(destinationIndex);
         }
 
         board.move(sourceIndex, destinationIndex);
+        events.add(new CheckerMovedEvent(color, from, to, diceValue));
 
-        return completeAction(gameState, board.getState(), diceValue);
+        return completeAction(gameState, board.getState(), diceValue, events);
     }
 
     /**
@@ -209,15 +227,19 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
 
         int destinationIndex = ADDRESSING.toBoardIndex(color, to);
         var destination = board.getCell(destinationIndex);
+        List<GameEvent> events = new ArrayList<>();
 
         if (!destination.isEmpty() && destination.getTopCheckerColor() != color) {
             // validateEnter() has already ensured that the opposing checker is alone.
+            events.add(new CheckerHitEvent(
+                    color, StandardCheckerColor.getOpposite(color), to));
             board.moveToBar(destinationIndex);
         }
 
         board.moveFromBar(color, destinationIndex);
+        events.add(new CheckerEnteredEvent(color, to));
 
-        return completeAction(gameState, board.getState(), diceValue);
+        return completeAction(gameState, board.getState(), diceValue, events);
     }
 
     /**
@@ -242,12 +264,15 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
         var board = new StandardBoard<>(gameState.getBoard());
 
         board.moveToBorneOff(ADDRESSING.toBoardIndex(color, from));
+        List<GameEvent> events = new ArrayList<>();
+        events.add(new CheckerBorneOffEvent(color, from, diceValue));
 
         BoardState<?> boardState = board.getState();
 
         if (boardState.getBorneOff().get(color).size() == CHECKERS_PER_SIDE) {
             List<Integer> remaining = new ArrayList<>(gameState.getRemainingDiceValues());
             remaining.remove(Integer.valueOf(diceValue));
+            events.add(new GameFinishedEvent(color));
 
             return gameState.toBuilder()
                     .board(boardState)
@@ -257,10 +282,11 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
                     .allowedMoves(Map.of())
                     .allowedBearOffs(Map.of())
                     .allowedEntries(Map.of())
+                    .events(List.copyOf(events))
                     .build();
         }
 
-        return completeAction(gameState, boardState, diceValue);
+        return completeAction(gameState, boardState, diceValue, events);
     }
 
     /*
@@ -271,7 +297,8 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
     private ShortGameState completeAction(
             ShortGameState gameState,
             BoardState<? extends Checker<?, ?>> boardState,
-            int diceValue) {
+            int diceValue,
+            List<GameEvent> events) {
 
         List<Integer> movementPool = new ArrayList<>(gameState.getRemainingDiceValues());
         movementPool.remove(Integer.valueOf(diceValue));
@@ -302,22 +329,30 @@ public class ShortBackgammonEngine extends AbstractBackgammonEngine<ShortGameSta
                 && context.getAllowedBearOffs().isEmpty()
                 && context.getAllowedEntries().isEmpty();
 
-        return remaining.isEmpty() || noAvailableActions ? finishTurn(result) : result;
+        return remaining.isEmpty() || noAvailableActions
+                ? finishTurn(result, events)
+                : result.toBuilder().events(List.copyOf(events)).build();
     }
 
     /*
      * Switches the active side and clears data belonging to the completed turn.
      * The board snapshot and other game properties are preserved.
      */
-    private ShortGameState finishTurn(ShortGameState gameState) {
+    private ShortGameState finishTurn(ShortGameState gameState, List<GameEvent> events) {
+        StandardCheckerColor fromColor = gameState.getActiveColor();
+        StandardCheckerColor toColor = StandardCheckerColor.getOpposite(fromColor);
+        List<GameEvent> transitionEvents = new ArrayList<>(events);
+        transitionEvents.add(new TurnChangedEvent(fromColor, toColor));
+
         return gameState.toBuilder()
-                .activeColor(StandardCheckerColor.getOpposite(gameState.getActiveColor()))
+                .activeColor(toColor)
                 .gamePhase(GamePhase.AWAITING_DICE)
                 .diceValues(List.of())
                 .remainingDiceValues(List.of())
                 .allowedMoves(Map.of())
                 .allowedBearOffs(Map.of())
                 .allowedEntries(Map.of())
+                .events(List.copyOf(transitionEvents))
                 .build();
     }
 

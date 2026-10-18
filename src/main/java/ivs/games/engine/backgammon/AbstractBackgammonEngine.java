@@ -10,6 +10,7 @@ import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Enter;
 import ivs.games.engine.backgammon.command.GameAction;
 import ivs.games.engine.backgammon.command.Move;
+import ivs.games.engine.backgammon.event.GameAbortedEvent;
 import ivs.games.engine.backgammon.state.GamePhase;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.backgammon.state.GameState;
@@ -244,6 +245,7 @@ public abstract class AbstractBackgammonEngine<S extends GameState>
     protected S processAbort(S gameState, Abort abort) {
         return (S) gameState.toBuilder()
                 .gamePhase(GamePhase.ABORTED)
+                .events(List.of(new GameAbortedEvent()))
                 .build();
     }
 

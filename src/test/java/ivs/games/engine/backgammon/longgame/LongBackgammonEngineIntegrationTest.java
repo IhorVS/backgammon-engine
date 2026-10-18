@@ -7,6 +7,13 @@ import ivs.games.engine.backgammon.command.Abort;
 import ivs.games.engine.backgammon.command.BearOff;
 import ivs.games.engine.backgammon.command.DiceRolled;
 import ivs.games.engine.backgammon.command.Move;
+import ivs.games.engine.backgammon.event.CheckerBorneOffEvent;
+import ivs.games.engine.backgammon.event.CheckerMovedEvent;
+import ivs.games.engine.backgammon.event.DiceRolledEvent;
+import ivs.games.engine.backgammon.event.GameAbortedEvent;
+import ivs.games.engine.backgammon.event.GameFinishedEvent;
+import ivs.games.engine.backgammon.event.GameStartedEvent;
+import ivs.games.engine.backgammon.event.TurnChangedEvent;
 import ivs.games.engine.backgammon.state.GameSetup;
 import ivs.games.engine.exception.EngineCommandException;
 import org.junit.jupiter.api.Test;
@@ -58,9 +65,11 @@ class LongBackgammonEngineIntegrationTest {
     void ordinaryRollMovesOneCheckerAndPassesTurn(StandardCheckerColor color) {
         StandardCheckerColor opponent = StandardCheckerColor.getOpposite(color);
         LongGameState initial = engine.startGame(new GameSetup(color));
+        assertEquals(List.of(new GameStartedEvent(color)), initial.getEvents());
 
         LongGameState rolled = engine.processCommand(initial, new DiceRolled(color, 1, 2));
 
+        assertEquals(List.of(new DiceRolledEvent(color, 1, 2)), rolled.getEvents());
         assertEquals(AWAITING_MOVE, rolled.getGamePhase());
         assertEquals(color, rolled.getActiveColor());
         assertEquals(List.of(1, 2), rolled.getDiceValues());
@@ -70,6 +79,7 @@ class LongBackgammonEngineIntegrationTest {
 
         LongGameState moved = engine.processCommand(rolled, new Move(color, 1, 1));
 
+        assertEquals(List.of(new CheckerMovedEvent(color, 1, 2, 1)), moved.getEvents());
         assertEquals(AWAITING_MOVE, moved.getGamePhase());
         assertEquals(List.of(2), moved.getRemainingDiceValues());
         assertEquals(1, moved.getHeadMoves());
@@ -84,6 +94,9 @@ class LongBackgammonEngineIntegrationTest {
 
         LongGameState completed = engine.processCommand(moved, new Move(color, 2, 2));
 
+        assertEquals(List.of(
+                new CheckerMovedEvent(color, 2, 4, 2),
+                new TurnChangedEvent(color, opponent)), completed.getEvents());
         assertTurnPassed(completed, opponent);
         assertEquals(14, checkerCount(completed, color, 1));
         assertEquals(1, checkerCount(completed, color, 4));
@@ -234,6 +247,9 @@ class LongBackgammonEngineIntegrationTest {
         LongGameState original = position(board, WHITE, true);
         LongGameState completed = engine.processCommand(original, new DiceRolled(WHITE, 1, 2));
 
+        assertEquals(List.of(
+                new DiceRolledEvent(WHITE, 1, 2),
+                new TurnChangedEvent(WHITE, BLACK)), completed.getEvents());
         assertTurnPassed(completed, BLACK);
         assertFalse(completed.getFirstTurns().get(WHITE));
         assertTrue(completed.getFirstTurns().get(BLACK));
@@ -278,6 +294,9 @@ class LongBackgammonEngineIntegrationTest {
 
         LongGameState finished = engine.processCommand(moved, new BearOff(color, 24, 2));
 
+        assertEquals(List.of(
+                new CheckerBorneOffEvent(color, 24, 2),
+                new GameFinishedEvent(color)), finished.getEvents());
         assertEquals(FINISHED, finished.getGamePhase());
         assertEquals(color, finished.getWinner());
         assertEquals(color, finished.getActiveColor());
@@ -385,6 +404,7 @@ class LongBackgammonEngineIntegrationTest {
 
         LongGameState aborted = engine.processCommand(moved, new Abort());
 
+        assertEquals(List.of(new GameAbortedEvent()), aborted.getEvents());
         assertNotSame(moved, aborted);
         assertEquals(ABORTED, aborted.getGamePhase());
         assertEquals(AWAITING_MOVE, moved.getGamePhase());

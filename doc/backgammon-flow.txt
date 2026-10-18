@@ -77,9 +77,20 @@ Supplied state containers store references without copying or validating them;
 creating code must supply consistent immutable snapshots and collections.
 Available action maps belong to the supplied snapshot; do not edit them manually.
 
+TRANSITION EVENTS
+-----------------
+The initial state contains GameStarted(startingColor).
+Each resulting state contains only the ordered events produced by the call
+that created it; the event list is replaced by every successful command.
+A checker hit precedes the active checker's move or entry. A turn change follows
+the action events when the turn ends. Bearing off the final checker is followed
+by GameFinished(winner), without a turn change. Abort produces GameAborted.
+Checker route points in events use active-side-relative points, as commands do.
+Keeping successive states also preserves the event sequence for the session.
+
 BOUNDARIES
 ----------
 Starting side selection and opening-roll orchestration belong to the session.
 The engine accepts any two valid values in AWAITING_DICE, including opening doubles.
 The engine records a winner, not gammon/backgammon scores or doubling-cube stakes.
-No event generation, persistence, networking or automatic deadlock adjudication is implemented.
+Event publication, persistence, networking or automatic deadlock adjudication is not implemented.
