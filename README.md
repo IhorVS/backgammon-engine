@@ -14,9 +14,9 @@ storing state history also preserves the events for each transition.
 ## Requirements and dependencies
 
 Use JDK 21. The Maven Wrapper can be used to build the project without a separately installed
-Maven. The `game-engine` and `backgammon-board` artifacts are resolved from GitHub Packages;
-access requires a GitHub token with package read permission. Grant this repository Actions read
-access to both packages; the workflow uses its `GITHUB_TOKEN`.
+Maven. `game-engine` and `backgammon-board` are separate source repositories and must be installed
+to the local Maven repository before building this project. The GitHub Actions workflow checks out
+and installs both dependencies automatically.
 
 | Group                   | Artifact           | Version |
 | ----------------------- | ------------------ | ------- |
