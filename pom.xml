@@ -26,6 +26,7 @@
         <mockito.junit.jupiter.version>5.12.0</mockito.junit.jupiter.version>
 
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
+        <maven.exec.plugin.version>3.5.0</maven.exec.plugin.version>
         <maven.source.plugin.version>3.3.0</maven.source.plugin.version>
     </properties>
 
@@ -105,6 +106,15 @@
                             <version>${lombok.version}</version>
                         </path>
                     </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${maven.exec.plugin.version}</version>
+                <configuration>
+                    <mainClass>ivs.games.engine.backgammon.demo.BoardRendererDemo</mainClass>
+                    <classpathScope>test</classpathScope>
                 </configuration>
             </plugin>
             <!-- Generates and attaches a source JAR for publishing and IDE navigation. -->

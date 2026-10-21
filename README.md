@@ -13,8 +13,9 @@ storing state history also preserves the events for each transition.
 
 ## Requirements and dependencies
 
-Use JDK 21 and Maven. Install these project dependencies locally, or make them available
-through your configured Maven repository:
+Use JDK 21. The Maven Wrapper can be used to build the project without a separately installed
+Maven. Install these project dependencies locally, or make them available through your configured
+Maven repository:
 
 | Group                   | Artifact           | Version |
 | ----------------------- | ------------------ | ------- |
@@ -26,12 +27,10 @@ Guava, Apache Commons Lang and Lombok are declared in `pom.xml`.
 Tests use JUnit 5 and Mockito. Lombok annotation processing is configured for Maven compilation.
 
 ```shell
-mvn clean install
+./mvnw clean install
 ```
 
-The build also attaches a source JAR. Maven test execution requires a Surefire version supporting
-JUnit 5; if your Maven defaults do not provide one, select a compatible version in your build setup.
-The IDE can run the JUnit 5 classes directly.
+On Windows, use `mvnw.cmd clean install`. The build also attaches a source JAR.
 
 Consumer dependency after installation:
 
@@ -228,7 +227,8 @@ System.out.println(renderer.render(gameState, StandardCheckerColor.WHITE));
 ```
 
 The test-source console demo `ivs.games.engine.backgammon.demo.BoardRendererDemo` prints both
-variants from both sides' perspectives. Run its `main` method from the IDE; it is not included
+variants from both sides' perspectives. Run it from the repository root with
+`./mvnw test-compile exec:java` (Windows: `mvnw.cmd test-compile exec:java`). It is not included
 in the published library artifact.
 
 ## License
