@@ -217,6 +217,20 @@ all supplied state data respects the immutability contract.
 
 See [doc/backgammon-flow.txt](doc/backgammon-flow.txt) for the command lifecycle.
 
+## Console board renderer
+
+`BackgammonBoardRenderer` displays a long or short game snapshot with point numbers relative to
+the selected side:
+
+```java
+var renderer = new BackgammonBoardRenderer();
+System.out.println(renderer.render(gameState, StandardCheckerColor.WHITE));
+```
+
+The test-source console demo `ivs.games.engine.backgammon.demo.BoardRendererDemo` prints both
+variants from both sides' perspectives. Run its `main` method from the IDE; it is not included
+in the published library artifact.
+
 ## License
 
 See [LICENSE](LICENSE).

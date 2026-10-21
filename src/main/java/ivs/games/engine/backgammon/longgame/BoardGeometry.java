@@ -38,7 +38,7 @@ import lombok.experimental.UtilityClass;
  * be passed to {@code ADDRESSING.toBoardIndex()}. Bearing-off legality is checked by game rules.</p>
  */
 @UtilityClass
-class BoardGeometry {
+public class BoardGeometry {
 
     /** The first physical playing cell index. */
     static final int FIRST_INDEX = 0;
@@ -86,7 +86,7 @@ class BoardGeometry {
     static final int BEAR_OFF_POINT = LAST_POINT + 1;
 
     /** Immutable conversions between side-relative route points and physical board indices. */
-    static final BoardAddressing<StandardCheckerColor> ADDRESSING = new BoardAddressing<>(
+    public static final BoardAddressing<StandardCheckerColor> ADDRESSING = new BoardAddressing<>(
             StandardCheckerColor.WHITE, createMapping(WHITE_HEAD),
             StandardCheckerColor.BLACK, createMapping(BLACK_HEAD));
 

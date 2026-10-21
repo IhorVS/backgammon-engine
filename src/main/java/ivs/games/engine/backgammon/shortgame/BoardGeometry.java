@@ -12,7 +12,7 @@ import lombok.experimental.UtilityClass;
  * Route points increase from 1 to 24 for either side.
  */
 @UtilityClass
-class BoardGeometry {
+public class BoardGeometry {
 
     /** The last side-relative route point before bearing off. */
     static final int LAST_POINT = BoardAddressing.PLAYING_CELL_COUNT;
@@ -23,7 +23,7 @@ class BoardGeometry {
     /** The virtual destination route point for exact bearing off. */
     static final int BEAR_OFF_POINT = LAST_POINT + 1;
 
-    static final BoardAddressing<StandardCheckerColor> ADDRESSING = new BoardAddressing<>(
+    public static final BoardAddressing<StandardCheckerColor> ADDRESSING = new BoardAddressing<>(
             StandardCheckerColor.WHITE, createMapping(false),
             StandardCheckerColor.BLACK, createMapping(true));
 
