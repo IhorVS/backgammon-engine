@@ -14,8 +14,9 @@ storing state history also preserves the events for each transition.
 ## Requirements and dependencies
 
 Use JDK 21. The Maven Wrapper can be used to build the project without a separately installed
-Maven. Install these project dependencies locally, or make them available through your configured
-Maven repository:
+Maven. The `game-engine` and `backgammon-board` artifacts are resolved from GitHub Packages;
+access requires a GitHub token with package read permission. Grant this repository Actions read
+access to both packages; the workflow uses its `GITHUB_TOKEN`.
 
 | Group                   | Artifact           | Version |
 | ----------------------- | ------------------ | ------- |
@@ -212,8 +213,6 @@ all supplied state data respects the immutability contract.
 - Short engine unit tests with a mocked resolver and direct resolver tests.
 - Short integration tests using public commands and the real resolver: hitting, entry, doubles,
   mandatory dice usage, bearing off, victory, cancellation and state preservation.
-
-See [doc/backgammon-flow.txt](doc/backgammon-flow.txt) for the command lifecycle.
 
 ## Console board renderer
 
