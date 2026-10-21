@@ -21,7 +21,6 @@ Maven repository:
 | ----------------------- | ------------------ | ------- |
 | `ivs.games.engine`      | `game-engine`      | `1.0.0` |
 | `ivs.games.accessories` | `backgammon-board` | `1.0.0` |
-| `ivs.games.accessories` | `randomizer`       | `1.0.0` |
 
 Guava, Apache Commons Lang and Lombok are declared in `pom.xml`.
 Tests use JUnit 5 and Mockito. Lombok annotation processing is configured for Maven compilation.

@@ -50,12 +50,6 @@
             <version>1.0.0</version>
         </dependency>
         <dependency>
-            <groupId>ivs.games.accessories</groupId>
-            <artifactId>randomizer</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>${commons-lang3.version}</version>
